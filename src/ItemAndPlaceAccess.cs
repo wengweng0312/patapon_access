@@ -7,6 +7,7 @@ internal static class ItemAndPlaceAccess
 {
     private static string lastItem="",lastPlace="";
     private static string lastEquipment="";
+    public static string CurrentItemName {get;private set;}="";
     private static long equipmentSeen;
     public static bool EquipmentActive=>Environment.TickCount64-equipmentSeen<500;
     private static long itemSeen;
@@ -76,6 +77,7 @@ internal static class ItemAndPlaceAccess
             if(param==null) return;
             string? name=UnitNames.Localized(ns,Get(param,"nameId"));
             if(string.IsNullOrWhiteSpace(name)) return;
+            CurrentItemName=name;
             var belong=Call(slot,"getBelongItem");
             string count=belong==null?"":"，持有 "+Get(belong,"num")+" 個";
             string? explain=UnitNames.Localized(ns,Get(param,"explainId"));

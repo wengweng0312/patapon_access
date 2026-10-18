@@ -26,7 +26,8 @@ internal static class UnitNames
         if(string.IsNullOrWhiteSpace(__result) || __args.Length==0) return;
         string ns=__originalMethod.DeclaringType!.Namespace!.Split('.')[0];
         managers[ns]=__instance;
-        localized[ns+":"+Convert.ToUInt32(__args[^1])]=Speech.Clean(__result);
+        uint id=__args.Length>=2?LocalizeIds.Pack(Convert.ToUInt32(__args[0]),Convert.ToUInt32(__args[1])):Convert.ToUInt32(__args[0]);
+        localized[ns+":"+id]=Speech.Clean(__result);
     }
     public static string? FetchLocalized(string ns,uint id)
     {
@@ -69,7 +70,7 @@ internal static class UnitNames
                 }
             }
             if(id==null) return null;
-            var name=Localized(ns,id) ?? Localized(ns,0x10000|id.Value);
+            var name=Localized(ns,LocalizeIds.Unit(unchecked((uint)id.Value)));
             if(name!=null && (!units.TryGetValue(ns+":"+model,out var old)||old!=Convert.ToUInt32(id))) {
                 units[ns+":"+model]=Convert.ToUInt32(id);
                 Monitor.Record("unit-name-resolved",new{ns,model,messageId=id,name});
@@ -86,7 +87,7 @@ internal static class UnitNames
             int? id=null;
             if(ns=="P1") id=target?.TryCast<P1.Bases.Camp.SelectItem.Behavior.NewUnit>()?.messageId_;
             else if(ns=="P2") id=target?.TryCast<P2.Bases.Camp.SelectItem.Behavior.NewUnit>()?.messageId_;
-            string? name=id==null?null:Localized(ns,id)??Localized(ns,0x10000|id.Value);
+            string? name=id==null?null:Localized(ns,LocalizeIds.Unit(unchecked((uint)id.Value)));
             if(observed.Add(ns+":"+model+":"+id+":"+name))
                 Monitor.Record("unit-callback-data",new{ns,model,messageId=id,name,target=target?.GetIl2CppType().FullName,callback=callback?.GetType().FullName});
             return name ?? Resolve(ns,model);

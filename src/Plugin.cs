@@ -11,7 +11,7 @@ using TMPro;
 
 namespace PataponAccess;
 
-[BepInPlugin("org.patapon.access.start", "Patapon Start Screen Access", "0.6.21")]
+[BepInPlugin("org.patapon.access.start", "Patapon Start Screen Access", "0.6.23")]
 public class Plugin : BasePlugin
 {
     private Reader? reader;
@@ -25,6 +25,7 @@ public class Plugin : BasePlugin
         DialogueAccess.QuietCampChatter=Config.Bind("Speech", "QuietCampChatter", true, "Silence automatic villager idle/stroll speech; preserve appeal messages and other dialogue. Also deduplicate seven known P1 chatter lines for two minutes.").Value;
         DialogueAccess.Install();
         CommonUi.Install();
+        StructuredUi.Install();
         bool diagnostics=Config.Bind("Diagnostics", "Enabled", true, "Record local UI and message events for accessibility development.").Value;
         Monitor.Initialize(diagnostics, Config.Bind("Diagnostics", "AutoCleanLogs", true, "Clean old accessibility event logs on startup.").Value, Config.Bind("Diagnostics", "LogRetentionDays", 7, "Keep event logs for this many days (1-3650).").Value, Config.Bind("Diagnostics", "LogMaxTotalMB", 200, "Startup event log size limit in MiB (50-10240); current session is additional.").Value);
         BattleMonitor.Install(diagnostics && Config.Bind("Diagnostics", "Battle", true, "Record P1 scalar attack checks, collision call counts and weather requests without reading native object fields.").Value);
@@ -106,7 +107,7 @@ public class Reader : MonoBehaviour
                 if(down && !keyDown[i]) {
                     if(i==0){pending="";DialogueAccess.Clear();CommonUi.Clear();ModuleHelp.Toggle();keyDown[i]=down;continue;}
                     else if(ModuleHelp.Active){ModuleHelp.Handle(i);keyDown[i]=down;continue;}
-                    if(!ModuleHelp.Active && i==1) Speech.Speak(RewardAccess.IsResultActive?RewardAccess.RepeatText:NameInputAccess.IsActive?NameInputAccess.RepeatText:OpeningAccess.IsActive?OpeningAccess.RepeatText:CommonUi.RepeatText.Length>0?CommonUi.RepeatText:string.IsNullOrEmpty(focusText)?Speech.Last:focusText);
+                    if(!ModuleHelp.Active && i==1) Speech.Speak(StructuredUi.RepeatText.Length>0?StructuredUi.RepeatText:RewardAccess.IsResultActive?RewardAccess.RepeatText:NameInputAccess.IsActive?NameInputAccess.RepeatText:OpeningAccess.IsActive?OpeningAccess.RepeatText:CommonUi.RepeatText.Length>0?CommonUi.RepeatText:string.IsNullOrEmpty(focusText)?Speech.Last:focusText);
                     if(!ModuleHelp.Active && i==2) Speech.Speak(VisibleText());
                     if(!ModuleHelp.Active && i==3) { pending=""; DialogueAccess.Clear(); CommonUi.Clear(); Speech.Stop(); }
                     if(!ModuleHelp.Active && i==5) AttackCue.Test();
@@ -117,6 +118,7 @@ public class Reader : MonoBehaviour
             if(ModuleHelp.Active){ModuleHelp.Tick();return;}
             if(Time.unscaledTime < nextPoll) return;
             nextPoll=Time.unscaledTime+0.1f;
+            if(StructuredUi.Scan()){pending="";return;}
             if(NameInputAccess.Scan()) {pending="";return;}
             AttackCue.Scan();
             RangeCue.Scan();
@@ -202,6 +204,7 @@ public class Reader : MonoBehaviour
     }
     private string VisibleText()
     {
+        if(StructuredUi.RepeatText.Length>0)return StructuredUi.RepeatText;
         if(RewardAccess.IsResultActive)return RewardAccess.RepeatText;
         if(NameInputAccess.IsActive)return NameInputAccess.RepeatText;
         if(OpeningAccess.IsActive)return OpeningAccess.RepeatText;

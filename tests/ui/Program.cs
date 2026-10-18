@@ -1,0 +1,27 @@
+using PataponAccess;
+void Check(bool ok,string name){if(!ok)throw new Exception(name);Console.WriteLine("PASS "+name);}
+var save=ReadoutText.Choice("確定是否覆寫？",new[]{"是","否"},0,"存檔確認");
+Check(save.Contains("確定是否覆寫？")&&save.EndsWith(" 是")&&!save.Contains("目前選擇")&&!save.Contains("第"),"overwrite question and selected yes");
+var gift=ReadoutText.Choice("要給他道具嗎？",new[]{"是","否"},1,"贈送道具，大眼捲心菜");
+Check(gift.Contains("大眼捲心菜")&&gift.EndsWith(" 否")&&!gift.Contains("目前選擇"),"gift item and selected no");
+Check(ReadoutText.Choice("問題",new[]{"是","否"},2)=="","invalid cursor never guessed");
+Check(ReadoutText.Select(save,gift,"background stats",true)==save,"save modal beats all background");
+Check(ReadoutText.Select("",gift,"background stats",true)==gift,"gift modal beats native background focus");
+Check(ReadoutText.Select("","","stats",true)=="","native confirmation suppresses squad readout");
+string[] values={"232","7 - 25","1.70 sec","43 %","5 %","5 %","43 %","15 %","20 %","45 %","40 %","30 %","40 %"};
+var squad=ReadoutText.Squad("盾兵PON",1,6,8,23,values);
+Check(squad.Contains("盾兵PON")&&squad.Contains("Reborn 8")&&squad.Contains("任務次數 23"),"selected squad identity and headers");
+Check(squad.Contains("弓箭減傷 5 %")&&squad.Contains("投槍減傷 5 %"),"equal values preserved in both columns");
+Check(squad.Contains("抗暴擊 40 %")&&squad.Contains("抗暈眩 40 %"),"equal resistance values preserved");
+Check(squad.Contains("平均攻擊力 7 - 25")&&squad.Contains("平均攻擊間隔 1.70 sec"),"stat labels remain paired with values");
+Check(squad.Split('。').Length==18,"all thirteen stats retained");
+Check(LocalizeIds.Pack(0,3)!=LocalizeIds.Pack(1,3),"localization categories cannot overwrite each other");
+Check(LocalizeIds.Unit(3)==0x10003,"unit names use category one");
+Check(LocalizeIds.Pack(2,0x20004)==0x20004,"packed localization index matches native low-word behavior");
+var tracker=new DialogSpeechTracker();
+Check(tracker.Say("save-1","確定是否覆寫？","是")=="確定是否覆寫？ 是","question once on dialog entry");
+Check(tracker.Say("save-1","確定是否覆寫？","否")=="否","cursor change speaks no only");
+Check(tracker.Say("save-1","確定是否覆寫？","是")=="是","cursor change speaks yes only");
+Check(tracker.Say("gift-1","大眼捲心菜。要給他道具嗎？","否").Contains("要給他道具嗎？"),"new dialog gets its question");
+Check(tracker.Say("gift-1","大眼捲心菜。要給他道具嗎？","是")=="是","gift cursor change speaks yes only");
+tracker.Reset();Check(tracker.Say("gift-1","要給他道具嗎？","否")=="要給他道具嗎？ 否","reopened dialog reads question again");

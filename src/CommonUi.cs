@@ -11,6 +11,8 @@ internal static class CommonUi
     private static string selectedPending="";
     private static long selectedReadyAt;
     private static long readyAt,changedAt,focusSeen;
+    private static long commandWindowSeen;
+    public static bool CommandWindowActive=>Environment.TickCount64-commandWindowSeen<350;
     private static float next;
     private static string lastDialog="",repeatText="";
     public static string RepeatText=>Environment.TickCount64-focusSeen<800?repeatText:"";
@@ -39,6 +41,7 @@ internal static class CommonUi
     {
         try {
             if(Call(__instance,"isForcus") is not true || Call(__instance,"isRunning") is not true) return;
+            commandWindowSeen=Environment.TickCount64;
             int index=Convert.ToInt32(Call(__instance,"getCursorPos"));
             var commands=Get(__instance,"cmdAry_");
             if(commands==null || index<0 || index>=Convert.ToInt32(Get(commands,"Count"))) return;
