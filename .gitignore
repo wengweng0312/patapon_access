@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+*.user
+*.log
+*.jsonl
+*.pdb
+.vs/
+releases/
+payload/
