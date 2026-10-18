@@ -11,7 +11,7 @@ using TMPro;
 
 namespace PataponAccess;
 
-[BepInPlugin("org.patapon.access.start", "Patapon Start Screen Access", "0.6.23")]
+[BepInPlugin("org.patapon.access.start", "Patapon Start Screen Access", "0.6.25")]
 public class Plugin : BasePlugin
 {
     private Reader? reader;
@@ -34,7 +34,7 @@ public class Plugin : BasePlugin
         NameInputAccess.Install();
         RewardAccess.Install();
         EnemyRangeGeometry.Install();
-        BossAttackCue.Install(Config.Bind("Audio","BossAttackCue",true,"Experimental P1 shared Attack motion onset cue for inspected large-enemy families.").Value);
+        BossAttackCue.Install(Config.Bind("Audio","BossAttackCue",true,"Experimental P1 boss script preparation cue with verified startup fallbacks.").Value);
         CartRange.Install(Config.Bind("Audio","CartRangeCue",true,"Experimental P1 wagon-specific sight cue with distinct chimes; no hit guarantee.").Value);
         VegetableCue.Install(Config.Bind("Audio","VegetableCatchCue",true,"Experimental P1 vegetable countdown cue; does not press keys.").Value,Config.Bind("Audio","VegetableLeadFrames",12,"Experimental lead in native item update frames, 1-35; not a verified judgement time.").Value);
         reader=AddComponent<Reader>();
