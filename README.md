@@ -1,6 +1,6 @@
 # 安裝說明
 
-1. 關閉遊戲，先安裝並啟動 NVDA。
+1. 關閉遊戲。
 2. 到 [Releases](https://github.com/wengweng0312/patapon_access/releases/latest) 下載最新版 `PataponAccess-版本號.zip`，不要下載 GitHub 的「Source code」。
 3. 將安裝包內的所有檔案解壓到 `PATAPON12_REPLAY.exe` 所在的遊戲根目錄。
 4. 執行 `安裝朗讀模組.cmd`，等待顯示「安裝完成」。
