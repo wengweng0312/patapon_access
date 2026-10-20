@@ -14,7 +14,7 @@ namespace PataponAccess;
 [BepInPlugin("org.patapon.access.start", "Patapon Start Screen Access", Plugin.ModVersion)]
 public class Plugin : BasePlugin
 {
-    public const string ModVersion="0.6.67";
+    public const string ModVersion="0.6.68";
     private Reader? reader;
     public override void Load()
     {

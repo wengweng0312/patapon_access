@@ -282,5 +282,6 @@
   "help.units": "部隊と装備",
   "help.battle": "戦闘操作",
   "help.sounds": "効果音の試聴",
-  "help.navigation": "MODヘルプ。左右で分類、上下で項目を選びます。Enterで試聴または設定変更。Shiftと上下で音量調整。HomeとEndで分類の最初と最後へ移動。F3で再読み上げ、EscapeまたはF1で閉じます。ゲームは一時停止しません。"
+  "help.navigation": "MODヘルプ。左右で分類、上下で項目を選びます。Enterで試聴または設定変更。Shiftと上下で音量調整。HomeとEndで分類の最初と最後へ移動。F3で再読み上げ、EscapeまたはF1で閉じます。ゲームは一時停止しません。",
+  "reward.unavailable": "戦闘結果。現在読み上げられる戦利品情報がありません。"
 }

@@ -282,5 +282,6 @@
   "help.units": "部队与装备",
   "help.battle": "战斗按键",
   "help.sounds": "音效试听",
-  "help.navigation": "模组帮助。左右切换分类，上下选择项目。Enter 试听或切换设置，Shift 加上下调整音量。Home、End 到当前分类的第一项、最后一项。F3 重读，Escape 或 F1 关闭。帮助不暂停游戏。"
+  "help.navigation": "模组帮助。左右切换分类，上下选择项目。Enter 试听或切换设置，Shift 加上下调整音量。Home、End 到当前分类的第一项、最后一项。F3 重读，Escape 或 F1 关闭。帮助不暂停游戏。",
+  "reward.unavailable": "战斗结算。目前没有可朗读的战利品数据。"
 }

@@ -1,0 +1,41 @@
+using PataponAccess;
+int checks=0;
+void Check(bool value,string label){checks++;if(!value)throw new Exception(label);}
+var state=new RewardResultState();
+Check(!state.Active(100),"startup does not invent a result");
+Check(!state.Describe().Contains("正在讀取"),"missing data does not claim ongoing loading");
+Check(state.Take(100)=="","no automatic placeholder");
+state.Observe("P1:1",new[]{"合金弓","一般的骨頭","合金弓"},false,100);
+Check(state.Active(100),"native result active");
+Check(state.Names.Count==2,"duplicate labels do not become duplicate names");
+Check(state.Take(400)=="","opening animation is not treated as controllable");
+state.Observe("P1:1",new[]{"合金弓","一般的骨頭","合金弓"},true,450);
+string first=state.Take(450);
+Check(first.Contains("合金弓")&&first.Contains("一般的骨頭"),"complete native name list read");
+Check(!first.Contains("個")&&!first.Contains("2"),"display row repeats never inferred as quantity");
+Check(state.Take(460)=="","same list read once");
+state.Observe("P1:1",new[]{"合金弓","一般的骨頭","叮叮鐵"},true,480);
+Check(state.Take(500)=="","late populated names settle");
+state.Observe("P1:1",new[]{"合金弓","一般的骨頭","叮叮鐵"},true,740);
+Check(state.Take(740).Contains("叮叮鐵"),"late added row is eventually read");
+Check(!state.Active(1240),"disposed/native stale snapshot not treated as visible");
+Check(state.Take(1240)=="","stale native summary not automatically read");
+state.Reset();
+Check(!state.Active(1300)&&state.Names.Count==0,"new mission resets prior loot");
+state.Observe("P1:1",new[]{"合金弓"},true,1300);
+state.Observe("P1:1",new[]{"合金弓"},true,1600);
+Check(state.Take(1600).Contains("合金弓"),"same item and pointer in next mission read again");
+state.Observe("P2:2",new[]{"硬梆梆的肉"},true,1650);
+Check(!state.Describe().Contains("合金弓"),"different game/window replaces old names");
+state.Observe("P2:2",Array.Empty<string>(),true,2000);
+Check(state.Names.Count==0&&state.Take(2300)=="","empty snapshot cannot reuse previous loot or infer no reward");
+foreach(var (language,names) in new[]{("zh-TW",new[]{"一般的骨頭","尖尖的牙"}),("zh-CN",new[]{"一般的骨头","尖尖的牙"}),("en",new[]{"Stone","Sharp Fang"}),("ja",new[]{"石ころ","とがった牙"})}){
+ I18n.SetLanguage(language);state.Reset();state.Observe(language,names,true,100);state.Observe(language,names,true,400);
+ string text=state.Take(400);Check(text.Contains(names[0])&&text.Contains(names[1]),"game-localized names survive "+language);
+ Check(text==I18n.T("ui.aac9c0e4dc1b","")+string.Join("、",names),"mod header translated without translating loot "+language);
+ Check(RewardResultState.Unavailable==I18n.T("reward.unavailable","")&&RewardResultState.Unavailable.Length>0,"missing-data state translated "+language);
+ Check(state.Take(450)=="","repeat frames do not chatter "+language);
+}
+I18n.SetLanguage("en");state.Reset();state.Observe("P2:3",new[]{"一般的骨頭"},true,100);state.Observe("P2:3",new[]{"一般的骨頭"},true,400);
+Check(state.Take(400).Contains("一般的骨頭"),"mod language differs from game; native item names unchanged");
+Console.WriteLine($"{checks} reward state checks passed. Native hooks still need gameplay validation.");

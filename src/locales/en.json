@@ -282,5 +282,6 @@
   "help.units": "Units and equipment",
   "help.battle": "Battle controls",
   "help.sounds": "Sound previews",
-  "help.navigation": "Mod help. Left and right change category; up and down select an item. Enter previews a sound or changes a setting. Shift plus up or down adjusts volume. Home and End select the first and last item in this category. F3 repeats; Escape or F1 closes help. The game keeps running."
+  "help.navigation": "Mod help. Left and right change category; up and down select an item. Enter previews a sound or changes a setting. Shift plus up or down adjusts volume. Home and End select the first and last item in this category. F3 repeats; Escape or F1 closes help. The game keeps running.",
+  "reward.unavailable": "Battle results. No readable loot details are currently available."
 }

@@ -1,6 +1,5 @@
 using HarmonyLib;
 using System.Reflection;
-using System.Text.RegularExpressions;
 using TMPro;
 using UnityEngine;
 
@@ -8,29 +7,31 @@ namespace PataponAccess;
 
 internal static class RewardAccess
 {
-    private static readonly HashSet<string> collected=new();
-    private static readonly List<string> order=new();
     private static readonly Dictionary<(string game,int id),(uint nameId,int count,long at)> gains=new();
     private static readonly Dictionary<(string game,int id),(uint nameId,int count)> battleGains=new();
     private static bool battleEnded;
-    private static bool inventoryResultUsed;
     private static string inventorySummary="";
     private static long battleChangedAt;
-    private static long changedAt,lastResultSeen;
-    private static string spoken="",miniRepeat="";
-    private static bool collecting;
+    private static long lastResultSeen;
+    private static bool resultSeen;
+    private static string miniRepeat="";
     public static string RepeatText=>IsResultActive ? Summary : miniRepeat;
-    public static bool IsResultActive=>Environment.TickCount64-lastResultSeen<500;
-    private static string Summary=>inventorySummary.Length>0?inventorySummary:I18n.T("ui.aac9c0e4dc1b","戰鬥結算，獲得物品：")+(order.Count>0?string.Join("、",order):I18n.T("ui.067fa1026fae","正在讀取戰利品"));
-    public static void BeginMission(){battleGains.Clear();battleEnded=false;inventoryResultUsed=false;inventorySummary="";battleChangedAt=Environment.TickCount64;}
+    public static bool IsResultActive=>NativeResultAccess.State.Active(Environment.TickCount64)||(resultSeen&&Environment.TickCount64-lastResultSeen<500);
+    private static string Summary=>inventorySummary.Length>0?inventorySummary:NativeResultAccess.State.Active(Environment.TickCount64)?NativeResultAccess.State.Describe():RewardResultState.Unavailable;
+    public static void BeginMission()
+    {
+        battleGains.Clear();battleEnded=false;inventorySummary=miniRepeat="";lastResultSeen=0;resultSeen=false;
+        NativeResultAccess.Reset();battleChangedAt=Environment.TickCount64;
+    }
     public static void EndMission(){battleEnded=true;battleChangedAt=Environment.TickCount64;}
     private static void BattleGain(string game,int id,uint nameId,int count)
     {
         var key=(game,id);int old=battleGains.TryGetValue(key,out var prior)?prior.count:0;
-        battleGains[key]=(nameId,old+count);inventoryResultUsed=true;battleChangedAt=Environment.TickCount64;
+        battleGains[key]=(nameId,old+count);battleChangedAt=Environment.TickCount64;
     }
     public static void Install()
     {
+        NativeResultAccess.Install();
         try {
             new Harmony("org.patapon.access.rewards").Patch(typeof(P1.GameSystem.Item.Operator).GetMethod("addItem"),
                 postfix:new HarmonyMethod(typeof(RewardAccess).GetMethod(nameof(Added),BindingFlags.Static|BindingFlags.NonPublic)));
@@ -87,28 +88,23 @@ internal static class RewardAccess
                 battleGains.Clear();battleEnded=false;
             }
         }
-        var texts=UnityEngine.Object.FindObjectsOfType<TMP_Text>()
-            .Where(t=>t && t.isActiveAndEnabled && t.color.a>=0.05f && t.maxVisibleCharacters>0
-                && Monitor.PathOf(t.transform).Contains("Result/ResultMask/Drum2DText_"))
-            .Select(t=>Speech.Clean(t.text)).Where(t=>t.Length>0).ToArray();
-        if(texts.Length>0) {
-            if(now-lastResultSeen>1000) {collected.Clear();order.Clear();collecting=false;spoken="";}
-            lastResultSeen=now;
-            if(texts.Contains("戰利品"))collecting=true;
-            if(collecting)foreach(string text in texts) {
-                if(text is "戰利品" or "響聲" or "過關時間" or "撿到的頭盔" or "喪失的頭盔"
-                    || Regex.IsMatch(text,@"^[\d\s:.,%×xX+\-]+$") || text.Contains('～'))continue;
-                if(collected.Add(text)){order.Add(text);changedAt=now;}
+        bool nativeActive=NativeResultAccess.State.Active(now);
+        // Retain visible-panel detection for F3/F4 if a native reader is unavailable.
+        // Never infer loot by collecting unrelated or recycled TMP labels.
+        bool visible=UnityEngine.Object.FindObjectsOfType<TMP_Text>().Any(t=>t&&t.isActiveAndEnabled&&t.color.a>=0.05f&&t.maxVisibleCharacters>0
+            &&!string.IsNullOrWhiteSpace(t.text)&&Monitor.PathOf(t.transform).Contains("Result/ResultMask/Drum2DText_"));
+        if(nativeActive||visible) {
+            lastResultSeen=now;resultSeen=true;
+            string displayText=NativeResultAccess.State.Take(now);
+            if(battleText.Length>0){miniRepeat=battleText;CommonUi.QueueSelection(battleText,interrupt:false);}
+            else if(displayText.Length>0&&inventorySummary.Length==0){
+                Speech.Speak(displayText,interrupt:false);
+                Monitor.Record("native-result-reward-speech",new{items=NativeResultAccess.State.Names.ToArray(),countsKnown=false});
             }
-            // Native grants arrive as the result closes. Visible labels alone can
-            // contain enemy names and cannot reliably pair names with quantities.
-            if(!BattleMonitor.Active&&!battleEnded&&!inventoryResultUsed&&order.Count>0 && now-changedAt>=1300 && spoken!=Summary && battleGains.Count==0) {
-                spoken=Summary;Speech.Speak(spoken,interrupt:false);
-                Monitor.Record("result-reward-speech",new{items=order.ToArray(),countsKnown=false});
-            }
-            if(battleText.Length>0){miniRepeat=battleText;CommonUi.QueueSelection(miniRepeat,interrupt:false);}
             return true;
         }
+        // Outside missions, wait for a batch of grants without hiding an active result.
+        if(gains.Values.Any(g=>now-g.at<500))return false;
         var announcements=new List<string>();
         foreach(var id in gains.Keys.ToArray()) {
             var gain=gains[id];if(now-gain.at<500)continue;
