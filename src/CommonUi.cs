@@ -41,6 +41,7 @@ internal static class CommonUi
     {
         try {
             if(Call(__instance,"isForcus") is not true || Call(__instance,"isRunning") is not true) return;
+            long priorWindowSeen=commandWindowSeen;
             commandWindowSeen=Environment.TickCount64;
             int index=Convert.ToInt32(Call(__instance,"getCursorPos"));
             var commands=Get(__instance,"cmdAry_");
@@ -50,6 +51,8 @@ internal static class CommonUi
             string label=Chars(Get(item,"name"));
             string help=Chars(Get(item,"help"));
             string title=Chars(Call(__instance,"getName"));
+            string ns=__instance.GetType().Namespace?.Split('.')[0]??"";
+            if(ns is "P2" or "P2S" && P2EvolutionAccess.ObserveWindow(title,label)){commandWindowSeen=priorWindowSeen;return;}
             string body="";
             var optionIndices=new List<int>();
             if(title.Equals("Information",StringComparison.OrdinalIgnoreCase)) {
@@ -89,7 +92,7 @@ internal static class CommonUi
     }
     public static void Scan()
     {
-        if(ItemAndPlaceAccess.EquipmentActive || ItemAndPlaceAccess.ItemActive)return;
+        if(P2EvolutionAccess.IsActive || ItemAndPlaceAccess.EquipmentActive || ItemAndPlaceAccess.ItemActive)return;
         if(Time.unscaledTime<next) return;
         next=Time.unscaledTime+0.15f;
         var values=new List<(string text,float x,float y)>();
@@ -99,10 +102,12 @@ internal static class CommonUi
         if(hasWindow)return;
         foreach(var t in UnityEngine.Object.FindObjectsOfType<TMP_Text>()) {
             if(!t || !t.isActiveAndEnabled || t.maxVisibleCharacters==0 || t.color.a<0.05f) continue;
+            if(MiracleAccess.Suppress(t))continue;
             string name=t.name;
             if(!name.StartsWith("DrumNormalText_") && !(name.StartsWith("DrumSysmteText_") && !hasWindow)) continue;
             string text=Speech.Clean(t.text);
             if(text.Length==0) continue;
+            if(BattleChants.SuppressVisible(DialogueText.Clean(t.text)))continue;
             var p=t.transform.position;
             values.Add((text,p.x,p.y));
         }
@@ -136,3 +141,4 @@ internal static class CommonUi
     public static void Clear() {pending="";selectedPending="";stable=candidate;}
     public static void QueueSelection(string text) {selectedPending=text;repeatText=text;focusSeen=Environment.TickCount64;selectedReadyAt=focusSeen+120;}
 }
+

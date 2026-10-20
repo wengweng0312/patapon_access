@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup><ItemGroup><Compile Include="../../src/BattleChantText.cs" Link="BattleChantText.cs"/><Compile Include="../../src/CannonWarningState.cs" Link="CannonWarningState.cs"/></ItemGroup></Project>

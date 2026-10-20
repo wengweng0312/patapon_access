@@ -41,7 +41,7 @@ internal static class Monitor
             run=DateTime.Now.ToString("yyyyMMdd-HHmmss")+"-"+Environment.ProcessId;
             OpenPart();
             string assembly=typeof(Plugin).Assembly.Location;
-            Record("session",new { plugin="0.6.25", schema=2, unity=Application.unityVersion, process=Environment.ProcessId, runtime=System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription, pluginSha256=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(assembly))) });
+            Record("session",new { plugin="0.6.48", schema=2, unity=Application.unityVersion, process=Environment.ProcessId, runtime=System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription, pluginSha256=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(assembly))) });
             var h=new Harmony("org.patapon.access.monitor");
             TitleAccess.Install(h);
             // Read-only observations of dialogue presentation and localization lookups.

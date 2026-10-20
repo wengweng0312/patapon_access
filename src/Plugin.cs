@@ -11,7 +11,7 @@ using TMPro;
 
 namespace PataponAccess;
 
-[BepInPlugin("org.patapon.access.start", "Patapon Start Screen Access", "0.6.25")]
+[BepInPlugin("org.patapon.access.start", "Patapon Start Screen Access", "0.6.49")]
 public class Plugin : BasePlugin
 {
     private Reader? reader;
@@ -23,20 +23,34 @@ public class Plugin : BasePlugin
         Speech.Initialize(native);
         AttackCue.Initialize(Config.Bind("Audio", "AttackReadyCue", false, "Play a short sound when visible text says 攻擊預備.").Value);
         DialogueAccess.QuietCampChatter=Config.Bind("Speech", "QuietCampChatter", true, "Silence automatic villager idle/stroll speech; preserve appeal messages and other dialogue. Also deduplicate seven known P1 chatter lines for two minutes.").Value;
+        BattleChants.Configure(Config.Bind("Speech","ReadBattleChants",false,"Read confirmed repeating player march/attack chants. Story, NPC dialogue and tactical warnings remain readable. Toggle in F1 help."));
+        DrumPuzzleAccess.Configure(Config.Bind("Speech","DrumPuzzleReadKeys",false,"Read puzzle keyboard bindings instead of drum names. Toggle in F1 help."));
         DialogueAccess.Install();
         CommonUi.Install();
         StructuredUi.Install();
         bool diagnostics=Config.Bind("Diagnostics", "Enabled", true, "Record local UI and message events for accessibility development.").Value;
         Monitor.Initialize(diagnostics, Config.Bind("Diagnostics", "AutoCleanLogs", true, "Clean old accessibility event logs on startup.").Value, Config.Bind("Diagnostics", "LogRetentionDays", 7, "Keep event logs for this many days (1-3650).").Value, Config.Bind("Diagnostics", "LogMaxTotalMB", 200, "Startup event log size limit in MiB (50-10240); current session is additional.").Value);
-        BattleMonitor.Install(diagnostics && Config.Bind("Diagnostics", "Battle", true, "Record P1 scalar attack checks, collision call counts and weather requests without reading native object fields.").Value);
-        RangeMonitor.Install(diagnostics,Config.Bind("Audio", "EnemyRangeCue", true, "Experimental cue on rising P1 long enemy sight flag; does not indicate hit.").Value);
+        HeroSongVolume.Initialize(Config);
+        MiracleAccess.Install(Config);
+        BattleMonitor.Install(diagnostics && Config.Bind("Diagnostics", "Battle", true, "Record P1/P2 scalar attack checks, collision call counts and weather requests without reading native object fields.").Value);
+        RangeMonitor.Install(diagnostics,Config.Bind("Audio", "EnemyRangeCue", true, "Experimental cue on rising P1/P2 long enemy sight flag; does not indicate hit.").Value);
         OpeningAccess.Install();
         NameInputAccess.Install();
         RewardAccess.Install();
         EnemyRangeGeometry.Install();
         BossAttackCue.Install(Config.Bind("Audio","BossAttackCue",true,"Experimental P1 boss script preparation cue with verified startup fallbacks.").Value);
+        P2BossAccess.Install();
+        CannonWarning.InstallTrace(diagnostics);
+        SceneMechanismLogger.Install(diagnostics);
+        DrumPuzzleAccess.Install();
+        P1TotemAccess.Install();
+        P2TreasureAccess.Install();
+        P2EvolutionAccess.Install();
+        if(diagnostics)P2NavigationLogger.Install();
+        P2CampNavigation.Install();
+        SpecialBossAccess.Install();
         CartRange.Install(Config.Bind("Audio","CartRangeCue",true,"Experimental P1 wagon-specific sight cue with distinct chimes; no hit guarantee.").Value);
-        VegetableCue.Install(Config.Bind("Audio","VegetableCatchCue",true,"Experimental P1 vegetable countdown cue; does not press keys.").Value,Config.Bind("Audio","VegetableLeadFrames",12,"Experimental lead in native item update frames, 1-35; not a verified judgement time.").Value);
+        VegetableCue.Install(Config.Bind("Audio","VegetableCatchCue",true,"Experimental P1/P2 vegetable countdown cue; does not press keys.").Value,Config.Bind("Audio","VegetableLeadFrames",12,"Experimental lead in native item update frames, 1-35; not a verified judgement time.").Value);
         reader=AddComponent<Reader>();
         Log.LogInfo("Start screen accessibility loaded. F1: help, F2: repeat, F3: visible text, F4: stop.");
     }
@@ -107,7 +121,7 @@ public class Reader : MonoBehaviour
                 if(down && !keyDown[i]) {
                     if(i==0){pending="";DialogueAccess.Clear();CommonUi.Clear();ModuleHelp.Toggle();keyDown[i]=down;continue;}
                     else if(ModuleHelp.Active){ModuleHelp.Handle(i);keyDown[i]=down;continue;}
-                    if(!ModuleHelp.Active && i==1) Speech.Speak(StructuredUi.RepeatText.Length>0?StructuredUi.RepeatText:RewardAccess.IsResultActive?RewardAccess.RepeatText:NameInputAccess.IsActive?NameInputAccess.RepeatText:OpeningAccess.IsActive?OpeningAccess.RepeatText:CommonUi.RepeatText.Length>0?CommonUi.RepeatText:string.IsNullOrEmpty(focusText)?Speech.Last:focusText);
+                    if(!ModuleHelp.Active && i==1) Speech.Speak(DrumPuzzleAccess.RepeatText.Length>0?DrumPuzzleAccess.RepeatText:P2CampNavigation.RepeatText.Length>0?P2CampNavigation.RepeatText:P2EvolutionAccess.RepeatText.Length>0?P2EvolutionAccess.RepeatText:P2TreasureAccess.RepeatText.Length>0&&!CommonUi.CommandWindowActive?P2TreasureAccess.RepeatText:StructuredUi.RepeatText.Length>0?StructuredUi.RepeatText:RewardAccess.IsResultActive?RewardAccess.RepeatText:NameInputAccess.IsActive?NameInputAccess.RepeatText:OpeningAccess.IsActive?OpeningAccess.RepeatText:CommonUi.RepeatText.Length>0?CommonUi.RepeatText:string.IsNullOrEmpty(focusText)?Speech.Last:focusText);
                     if(!ModuleHelp.Active && i==2) Speech.Speak(VisibleText());
                     if(!ModuleHelp.Active && i==3) { pending=""; DialogueAccess.Clear(); CommonUi.Clear(); Speech.Stop(); }
                     if(!ModuleHelp.Active && i==5) AttackCue.Test();
@@ -120,6 +134,8 @@ public class Reader : MonoBehaviour
             nextPoll=Time.unscaledTime+0.1f;
             if(StructuredUi.Scan()){pending="";return;}
             if(NameInputAccess.Scan()) {pending="";return;}
+            MiracleAccess.Tick();
+            DrumPuzzleAccess.Tick();
             AttackCue.Scan();
             RangeCue.Scan();
             CartRange.Scan();
@@ -204,13 +220,14 @@ public class Reader : MonoBehaviour
     }
     private string VisibleText()
     {
+        if(P2CampNavigation.RepeatText.Length>0)return P2CampNavigation.RepeatText;
         if(StructuredUi.RepeatText.Length>0)return StructuredUi.RepeatText;
         if(RewardAccess.IsResultActive)return RewardAccess.RepeatText;
         if(NameInputAccess.IsActive)return NameInputAccess.RepeatText;
         if(OpeningAccess.IsActive)return OpeningAccess.RepeatText;
         if(TitleAccess.IsActive) return "開始選單：開始新遊戲、繼續遊戲、返回。現在選擇："+TitleAccess.Current;
         var texts=new List<string>();
-        foreach(var t in UnityEngine.Object.FindObjectsOfType<TMP_Text>()) if(t && t.isActiveAndEnabled) texts.Add(Speech.Clean(t.text));
+        foreach(var t in UnityEngine.Object.FindObjectsOfType<TMP_Text>()) if(t && t.isActiveAndEnabled && !MiracleAccess.Suppress(t)) texts.Add(Speech.Clean(t.text));
         foreach(var t in UnityEngine.Object.FindObjectsOfType<Text>()) if(t && t.isActiveAndEnabled) texts.Add(Speech.Clean(t.text));
         string result=string.Join("。",texts.Where(t=>t.Length>0).Distinct());
         return result.Length>0?result:"目前找不到可讀取的文字";
@@ -310,6 +327,7 @@ internal static class SettingsAccess
         return result;
     }
 }
+
 
 
 

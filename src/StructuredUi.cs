@@ -28,12 +28,15 @@ internal static class StructuredUi
             Patch(h,ns+".Bases.Item.Dialog","setup",nameof(DialogSetup));
             Patch(h,ns+".Bases.Item.PresentDialog","update",nameof(Gift));
         }
-        Patch(h,"P1.Bases.Organization.SquadStatusDisplay","setMessage",nameof(Stat));
-        Patch(h,"P1.Bases.Organization.SquadSelectMenu","update",nameof(Squad));
+        foreach(string ns in new[]{"P1","P2"}) {
+            // P2 Message is a value struct, unlike P1 reference type. Do not detour it.
+            if(ns=="P1")Patch(h,ns+".Bases.Organization.SquadStatusDisplay","setMessage",nameof(Stat));
+            Patch(h,ns+".Bases.Organization.SquadSelectMenu","update",nameof(Squad));
+        }
     }
     private static void Patch(Harmony h,string type,string method,string callback)
     {
-        try {var t=typeof(LauncherMain).Assembly.GetType(type);if(t==null)return;var m=t.GetMethod(method);if(m==null||m.GetParameters().Any(p=>p.ParameterType.IsByRef))return;h.Patch(m,postfix:new HarmonyMethod(typeof(StructuredUi).GetMethod(callback,BindingFlags.NonPublic|BindingFlags.Static)));Monitor.Record("structured-ui-hook",new{type,method});}
+        try {var t=typeof(LauncherMain).Assembly.GetType(type);if(t==null)return;var m=t.GetMethod(method);if(m==null||m.GetParameters().Any(p=>p.ParameterType.IsByRef||(p.ParameterType.IsValueType&&!p.ParameterType.IsPrimitive&&!p.ParameterType.IsEnum)))return;h.Patch(m,postfix:new HarmonyMethod(typeof(StructuredUi).GetMethod(callback,BindingFlags.NonPublic|BindingFlags.Static)));Monitor.Record("structured-ui-hook",new{type,method});}
         catch(Exception e){Reader.Log.LogWarning("Structured UI hook: "+e.Message);}
     }
     private static void Stat(object __instance,string __1,uint __2)
@@ -53,9 +56,12 @@ internal static class StructuredUi
             // getSelectSquad returns the currently assigned squad, not the replacement cursor.
             var slots=Get(__instance,"activeSlotList_");if(slots==null||index>=Convert.ToInt32(Get(slots,"Count")))return;
             var slot=Call(slots,"get_Item",index);var param=slot==null?null:Get(slot,"param_");if(param==null)return;
-            string? name=UnitNames.FetchLocalized("P1",LocalizeIds.Unit(Convert.ToUInt32(Get(param,"charNameId"))));
+            string? name=UnitNames.FetchLocalized(__instance.GetType().Namespace!.Split('.')[0],LocalizeIds.Unit(Convert.ToUInt32(Get(param,"charNameId"))));
             if(string.IsNullOrWhiteSpace(name))return;
-            var display=Get(__instance,"statusDisplay_");if(display==null||!stats.TryGetValue(Ptr(display),out var values)||values.Any(string.IsNullOrWhiteSpace))return;
+            string game=__instance.GetType().Namespace!.Split('.')[0];
+            var display=Get(__instance,"statusDisplay_");
+            string[] values=Array.Empty<string>();
+            if(game=="P1"&&(display==null||!stats.TryGetValue(Ptr(display),out values!)||values.Any(string.IsNullOrWhiteSpace)))return;
             int reborn=0,missions=0;var units=Call(__instance,"getSelectAddingParam");
             if(units!=null)for(int i=0;i<Math.Min(64,Convert.ToInt32(Get(units,"Count")));i++){var unit=Call(units,"get_Item",i);if(unit==null)continue;reborn+=Convert.ToInt32(Get(unit,"deadCount"));missions=Math.Max(missions,Convert.ToInt32(Get(unit,"missionCount")));}
             squad=ReadoutText.Squad(name,index,total,Math.Clamp(reborn,0,999),Math.Clamp(missions,0,999),values);squadSeen=Environment.TickCount64;
@@ -102,7 +108,7 @@ internal static class StructuredUi
         bool giving=save.Length==0&&now-giftSeen<250;
         if(giving)choice=giftChoice;
         string text=ReadoutText.Select(save,giving?gift:"",now-squadSeen<250?squad:"",CommonUi.CommandWindowActive);
-        if(text.Length==0){if(active){CommonUi.Clear();DialogueAccess.Clear();}active=false;candidate=spoken=repeat="";dialogSpeech.Reset();return false;}
+        if(text.Length==0){if(active){if(!ItemAndPlaceAccess.EquipmentActive)CommonUi.Clear();DialogueAccess.Clear();}active=false;candidate=spoken=repeat="";dialogSpeech.Reset();return false;}
         if(!active){CommonUi.Clear();DialogueAccess.Clear();}active=true;repeat=text;
         string signature=choice==null?text:choice.key+"|"+text;
         if(signature!=candidate){candidate=signature;changedAt=now;}

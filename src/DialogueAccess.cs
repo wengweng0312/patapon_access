@@ -24,6 +24,7 @@ internal static class DialogueAccess
     {
         var h=new Harmony("org.patapon.access.dialogue");
         AmbientDialogue.Install(h);
+        BattleChants.Install(h);
         foreach(string ns in new[]{"P1","P2","P1S","P2S"})
         foreach(string suffix in new[]{".Game.Window.Message",".GameSystem.MessageWindow"}) {
             var type=typeof(LauncherMain).Assembly.GetType(ns+suffix);
@@ -43,6 +44,11 @@ internal static class DialogueAccess
                 AttackCue.Observe(raw); // Audio preference never suppresses the original dialogue.
                 string text=DialogueText.Clean(raw);
                 if(text.Length==0) continue;
+                CannonWarning.Observe(__originalMethod.DeclaringType+"."+__originalMethod.Name,text);
+                if(BattleChants.Suppress(text)){
+                    Monitor.Record("battle-chant-suppressed",new{source=__originalMethod.DeclaringType+"."+__originalMethod.Name,text,speaker=BattleChants.Source});
+                    continue;
+                }
                 if(QuietCampChatter && AmbientDialogue.IsAmbient) {
                     Monitor.Record("ambient-dialogue-suppressed",new{source=__originalMethod.DeclaringType+"."+__originalMethod.Name,text,ambientDepth=AmbientDialogue.Depth,appealDepth=AmbientDialogue.AppealDepth});
                     continue;
@@ -57,9 +63,9 @@ internal static class DialogueAccess
                         idleSpoken[text]=now;
                     }
                     if(text==previous && now-previousAt<800) continue;
-                    previous=text;previousAt=now;pending=text;pendingLevelTemplate=DialogueText.HasLevelToken(raw)?raw:"";readyAt=now+(pendingLevelTemplate.Length>0?250:60);
+                    previous=text;previousAt=now;pending=text;pendingLevelTemplate=DialogueText.HasLevelToken(raw)?raw:"";readyAt=now+60;
                 }
-                Monitor.Record("dialogue-queued",new{source=__originalMethod.DeclaringType+"."+__originalMethod.Name,text,ambientDepth=AmbientDialogue.Depth,appealDepth=AmbientDialogue.AppealDepth});
+                Monitor.Record("dialogue-queued",new{source=__originalMethod.DeclaringType+"."+__originalMethod.Name,text,ambientDepth=AmbientDialogue.Depth,appealDepth=AmbientDialogue.AppealDepth,speaker=BattleChants.Source});
             }
         } catch(Exception e) {Reader.Log.LogWarning("Dialogue capture: "+e.Message);}
     }
@@ -75,7 +81,7 @@ internal static class DialogueAccess
                     if(resolved.Length==0)continue;
                     text=resolved;Monitor.Record("dialogue-level-resolved",new{text});pendingLevelTemplate="";break;
                 }
-                if(pendingLevelTemplate.Length>0&&Environment.TickCount64-previousAt<1500){readyAt=Environment.TickCount64+50;return "";}
+                if(pendingLevelTemplate.Length>0&&Environment.TickCount64-previousAt<DialogueText.LevelResolutionTimeoutMs){readyAt=Environment.TickCount64+50;return "";}
                 if(pendingLevelTemplate.Length>0){text=System.Text.RegularExpressions.Regex.Replace(text,@"Lv\.\s*","等級未取得 ");pendingLevelTemplate="";}
             }
             pending="";

@@ -23,7 +23,7 @@ function Save-Original([string]$Relative) {
     $changed.Add([pscustomobject]@{Path=$Relative;Existed=$exists})
 }
 try {
-    Write-Host 'PATAPON 1+2 REPLAY 朗讀模組 0.6.25 安裝程式'
+    Write-Host 'PATAPON 1+2 REPLAY 朗讀模組 0.6.49 安裝程式'
     $GameRoot=[IO.Path]::GetFullPath($GameRoot)
     foreach($required in @('PATAPON12_REPLAY.exe','GameAssembly.dll','PATAPON12_REPLAY_Data\il2cpp_data\Metadata\global-metadata.dat')) {
         if(!(Test-Path -LiteralPath (Join-Path $GameRoot $required) -PathType Leaf)) {throw '請先將整個安裝包解壓到遊戲根目錄，也就是 PATAPON12_REPLAY.exe 所在資料夾，再執行安裝。'}
@@ -73,7 +73,7 @@ try {
     $modText=Set-IniValue $modText 'Audio' 'AttackReadyCue' 'false'
     [IO.File]::WriteAllText($modCfg,$modText,(New-Object Text.UTF8Encoding($false)))
     $changed | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $backup 'changed-files.json') -Encoding UTF8
-    Write-Host '安裝完成！請先啟動 NVDA，再從 Steam 開啟遊戲。'
+    Write-Host '安裝完成！請從 Steam 開啟遊戲。'
     Write-Host 'BepInEx 黑色視窗已隱藏，記錄器保留；存檔及按鍵設定不受影響。'
     Write-Host ('舊檔備份：'+$backup)
     $result=0

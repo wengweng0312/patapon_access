@@ -104,6 +104,7 @@ internal static class BossAttackCue
         bool played=pid==Environment.ProcessId&&File.Exists(file)&&CueAudio.Play(file);
         Monitor.Record("boss-attack-cue",new{game="P1",unit,motion,source,played,meaning="attack cycle marker, not hit prediction",experimental=true});
     }
+    public static void Special(IntPtr key,string unit,int motion,string source)=>Emit(key,unit,motion,source);
     private static void Changed(P1.Game.Unit.UnitModel __instance,int __1,P1.Game.Unit.MotionBaseTypeE __2,bool __4,bool __result)
     {
         if(failed||!__result)return;

@@ -14,12 +14,20 @@ internal static class BattleMonitor
     public static int Mission {get;private set;}
     public static void Install(bool value)
     {
-        enabled=value;if(!enabled)return;
+        enabled=value;
         var h=new Harmony("org.patapon.access.battle-observation");
+        Patch(h,typeof(P2.MainGame.Mission.MissionScene),"initialize",nameof(MissionStart));
+        Patch(h,typeof(P2.MainGame.Mission.MissionScene),"terminate",nameof(MissionEnd));
+        // Mission lifecycle is functional even when diagnostic recording is disabled.
+        if(enabled) {
+        Patch(h,typeof(P2.Game.Unit.BehaviorCtrl),"behaviorFunc_isPossibleAttack",nameof(AttackCheck));
+        Patch(h,typeof(P2.Game.Unit.UnitBase),"checkHit",nameof(UnitCollision));
+        Patch(h,typeof(P2.Game.Gimmick.Gimmick),"checkHit",nameof(GimmickCollision));
         Patch(h,typeof(P1.Game.Unit.BehaviorCtrl),"behaviorFunc_isPossibleAttack",nameof(AttackCheck));
         Patch(h,typeof(P1.Game.Unit.UnitBase),"checkHit",nameof(UnitCollision));
         Patch(h,typeof(P1.Game.Gimmick.Gimmick),"checkHit",nameof(GimmickCollision));
         Patch(h,typeof(P1.Game.Map.Weather.Controller),"changeWeather",nameof(WeatherChange));
+        }
         Patch(h,typeof(P1.MainGame.Mission.MissionScene),"initialize",nameof(MissionStart));
         Patch(h,typeof(P1.MainGame.Mission.MissionScene),"terminate",nameof(MissionEnd));
         Monitor.Record("battle-observer",new{mode="primitive-values-only",game="P1",note="No native object fields read. Collision counts are not hit or damage confirmation."});
@@ -47,8 +55,8 @@ internal static class BattleMonitor
     private static void GimmickCollision(){gimmickCollisions++;}
     private static void WeatherChange(uint __0,float __1,P1.Game.Map.Weather.ParamId __2)
         =>Monitor.Record("weather-request",new{weatherId=__0,transitionSeconds=float.IsFinite(__1)?(float?)__1:null,source=__2.ToString(),note="Requested weather only; actual wind and rain not read."});
-    private static void MissionStart(){Active=true;Mission++;RangeMonitor.Begin();lastPossible=null;Monitor.Record("mission-start",new{mission=Mission});}
-    private static void MissionEnd(){Active=false;RangeMonitor.End();Monitor.Record("mission-end",new{mission=Mission});}
+    private static void MissionStart(MethodBase __originalMethod){MiracleAccess.Clear();Active=true;Mission++;RangeMonitor.Begin();RewardAccess.BeginMission();CannonWarning.BeginMission();SceneMechanismLogger.BeginMission();lastPossible=null;Monitor.Record("mission-start",new{mission=Mission,game=__originalMethod.DeclaringType!.Namespace!.Split('.')[0]});}
+    private static void MissionEnd(){MiracleAccess.Clear();Active=false;RangeMonitor.End();RewardAccess.EndMission();Monitor.Record("mission-end",new{mission=Mission});}
     public static void Health()
     {
         if(!enabled||Environment.TickCount64<nextHealth)return;
@@ -56,5 +64,6 @@ internal static class BattleMonitor
         Monitor.Record("battle-observer-health",new{checks,possible,unitCollisionCalls=unitCollisions,gimmickCollisionCalls=gimmickCollisions,mode="primitive-values-only"});
     }
 }
+
 
 

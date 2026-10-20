@@ -10,7 +10,7 @@ internal static class CueAudio
     public static void Initialize(ConfigFile config)
     {
         settings=config;
-        foreach(string name in new[]{"enemy-range","enemy-range-leave","cart-range-enter","cart-range-leave","boss-attack-start","vegetable-catch","attack-ready"})
+        foreach(string name in new[]{"enemy-range","enemy-range-leave","cart-range-enter","cart-range-leave","boss-attack-start","vegetable-catch","attack-ready","mechanism-near","miracle-ending"})
             levels[name]=config.Bind("CueVolume",name,10,new ConfigDescription("Individual cue volume, 0 silent, 10 original, 20 maximum. One step is 10 percent.",new AcceptableValueRange<int>(0,20)));
     }
     public static int Level(string file)=>levels.TryGetValue(Path.GetFileNameWithoutExtension(file),out var entry)?entry.Value:10;
@@ -44,3 +44,4 @@ internal static class CueAudio
         }catch(Exception e){Reader.Log.LogWarning("Cue audio: "+e.Message);return false;}
     }
 }
+

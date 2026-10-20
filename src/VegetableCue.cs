@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
@@ -23,6 +23,10 @@ internal static class VegetableCue
         Patch(h,typeof(P1.Bases.Camp.SoundGame.Bean.Item),"update",nameof(ItemUpdate));
         Patch(h,typeof(P1.Sound.SubGame.Bean.Command),"hitKey",nameof(Input));
         Patch(h,typeof(P1.Bases.Camp.SoundGame.Bean.ItemManager),"catchItem",nameof(Caught));
+        Patch(h,typeof(P2.Bases.Camp.SoundGame.Bean.Item),"update",nameof(ItemUpdateP2));
+        // P2 hitKey has an extra rate argument; the callback observes only shared scalar arguments.
+        Patch(h,typeof(P2.Sound.SubGame.Bean.Command),"hitKey",nameof(Input));
+        Patch(h,typeof(P2.Bases.Camp.SoundGame.Bean.ItemManager),"catchItem",nameof(Caught));
         Monitor.Record("vegetable-cue-installed",new{game="P1",enabled,leadFrames,experimental=true,soundPresent=File.Exists(sound)});
     }
     private static void Patch(Harmony h,Type type,string method,string callback)
@@ -32,20 +36,26 @@ internal static class VegetableCue
     }
     private static void ItemUpdate(P1.Bases.Camp.SoundGame.Bean.Item __instance)
     {
+        try { Observe(__instance.Pointer,(int)__instance.state_,__instance.fallFrame_,__instance.isCacthEnd_,__instance.catchNum_,
+            __instance.state_==P1.Bases.Camp.SoundGame.Bean.Item.State.State_SkyWait||__instance.state_==P1.Bases.Camp.SoundGame.Bean.Item.State.State_Fall,
+            __instance.state_==P1.Bases.Camp.SoundGame.Bean.Item.State.State_Shoot,"P1"); }
+        catch(Exception e){Monitor.Record("vegetable-timing-error",new{game="P1",error=e.Message});}
+    }
+    private static void ItemUpdateP2(P2.Bases.Camp.SoundGame.Bean.Item __instance)
+    {
+        try { Observe(__instance.Pointer,(int)__instance.state_,__instance.fallFrame_,__instance.isCacthEnd_,__instance.catchNum_,
+            __instance.state_==P2.Bases.Camp.SoundGame.Bean.Item.State.State_SkyWait||__instance.state_==P2.Bases.Camp.SoundGame.Bean.Item.State.State_Fall,
+            __instance.state_==P2.Bases.Camp.SoundGame.Bean.Item.State.State_Shoot,"P2"); }
+        catch(Exception e){Monitor.Record("vegetable-timing-error",new{game="P2",error=e.Message});}
+    }
+    private static void Observe(IntPtr key,int state,int remaining,bool ended,uint catches,bool falling,bool shoot,string game)
+    {
         try {
-            // Only scalar fields of the currently executing item; no model, native
-            // arrays or by-ref activation arguments are inspected or modified.
-            int state=(int)__instance.state_,remaining=__instance.fallFrame_;
-            bool ended=__instance.isCacthEnd_;
-            uint catches=__instance.catchNum_;
-            var key=__instance.Pointer;
             var old=tracked.TryGetValue(key,out var prior)?prior:(frame:9999,state:-1,fired:false);
-            bool falling=__instance.state_==P1.Bases.Camp.SoundGame.Bean.Item.State.State_SkyWait
-                || __instance.state_==P1.Bases.Camp.SoundGame.Bean.Item.State.State_Fall;
             bool fired=old.fired;
-            if(remaining>36 || __instance.state_==P1.Bases.Camp.SoundGame.Bean.Item.State.State_Shoot)fired=false;
+            if(remaining>36 || shoot)fired=false;
             if(state!=old.state || (falling && remaining/6!=old.frame/6))
-                Monitor.Record("vegetable-item-timing",new{item=key.ToInt64(),state,remaining,ended,catches});
+                Monitor.Record("vegetable-item-timing",new{game,item=key.ToInt64(),state,remaining,ended,catches});
             if(falling && !ended && catches==0 && !fired && remaining>0 && remaining<=leadFrames && old.frame>leadFrames) {
                 fired=true;long now=Environment.TickCount64;
                 GetWindowThreadProcessId(GetForegroundWindow(),out uint pid);
@@ -53,7 +63,7 @@ internal static class VegetableCue
                 if(enabled && pid==Environment.ProcessId && now-lastCue>=100 && File.Exists(sound)) {
                     lastCue=now;played=CueAudio.Play(sound);
                 }
-                Monitor.Record("vegetable-catch-cue",new{item=key.ToInt64(),remaining,leadFrames,played,experimental=true});
+                Monitor.Record("vegetable-catch-cue",new{game,item=key.ToInt64(),remaining,leadFrames,played,experimental=true});
             }
             if(tracked.Count>128)tracked.Clear();
             tracked[key]=(remaining,state,fired);

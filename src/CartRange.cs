@@ -48,6 +48,7 @@ internal static class CartRange
     }
     private static void CartUpdate(P1.Game.Gimmick.Gimmick __instance)
     {
+        SpecialBossAccess.ObserveTarget(__instance);
         if(!active||failed)return;
         try {
             var key=__instance.Pointer;long now=Environment.TickCount64;

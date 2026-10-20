@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using System.Reflection;
 
 namespace PataponAccess;
@@ -66,7 +66,7 @@ internal static class UnitNames
                 var list=P2.Bases.Camp.SelectItem.Behavior.EnagyValueDisp.noticeObjectList_;
                 if(list!=null) for(int i=0;i<list.Count;i++) {
                     var u=list[i]?.TryCast<P2.Bases.Camp.SelectItem.Behavior.NewUnit>();
-                    if(u!=null && u.help_==model) {id=u.messageId_;break;}
+                    if(u!=null && u.help_==model) {P2CampNavigation.ObserveTreeModel(u);P2NavigationLogger.LifeTree(u);id=u.messageId_;break;}
                 }
             }
             if(id==null) return null;

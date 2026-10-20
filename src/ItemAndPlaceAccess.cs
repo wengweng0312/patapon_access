@@ -9,7 +9,7 @@ internal static class ItemAndPlaceAccess
     private static string lastEquipment="";
     public static string CurrentItemName {get;private set;}="";
     private static long equipmentSeen;
-    public static bool EquipmentActive=>Environment.TickCount64-equipmentSeen<500;
+    public static bool EquipmentActive=>Environment.TickCount64-equipmentSeen<500||P2CampNavigation.ItemMenuActive||P2CampNavigation.UnitPageActive;
     private static long itemSeen;
     public static bool ItemActive=>Environment.TickCount64-itemSeen<500;
     public static void Install(Harmony h)
@@ -33,6 +33,7 @@ internal static class ItemAndPlaceAccess
     private static void Equipment(object __instance)
     {
         try {
+            if(__instance is P2.Bases.Organization.ItemSelectWindow)return; // P2 ItemMenu owns the accessor and selection mode.
             if(Call(__instance,"isActive") is not true)return;
             int index=Convert.ToInt32(Get(__instance,"selectIndex_"));
             var ids=Get(__instance,"belongingItemIdArray_");
