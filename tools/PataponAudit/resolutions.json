@@ -1,0 +1,140 @@
+{
+  "schema": 1,
+  "policy": "Historical findings are retained separately, never permanently suppressed. Unknown/new versions remain actionable; implementation is not gameplay verification.",
+  "entries": [
+    {
+      "id": "p2-timer-helper-crab-starts",
+      "match": {
+        "rules": [
+          "windup-unrecognized"
+        ],
+        "game": "P2",
+        "units": [
+          "unit217_01_01",
+          "unit218_01_01"
+        ]
+      },
+      "implementedIn": "0.6.52",
+      "status": "implemented-awaiting-gameplay",
+      "evidence": "Native timer-helper branches and recorded startup replay; actual advance/audio still needs gameplay."
+    },
+    {
+      "id": "p2-shared-gon-shark-bird-starts",
+      "match": {
+        "rules": [
+          "windup-unrecognized"
+        ],
+        "game": "P2",
+        "units": [
+          "unit228_01_01",
+          "unit237_01_01",
+          "unit224_01_01"
+        ]
+      },
+      "implementedIn": "0.6.50",
+      "status": "implemented-awaiting-gameplay",
+      "evidence": "Shared script entry replay; does not prove every attack has enough lead."
+    },
+    {
+      "id": "p2-bird-marker-duplicate",
+      "match": {
+        "rules": [
+          "attack-without-observed-windup"
+        ],
+        "game": "P2",
+        "units": [
+          "unit224_01_01"
+        ]
+      },
+      "implementedIn": "0.6.50",
+      "status": "implemented-awaiting-gameplay",
+      "evidence": "Recorded earlier startup is recognized by shared rules; damage marker is not itself a warning."
+    },
+    {
+      "id": "dialogue-rendered-variables",
+      "match": {
+        "rules": [
+          "template-substitution-gap"
+        ]
+      },
+      "implementedIn": "0.6.52",
+      "status": "implemented-awaiting-gameplay",
+      "evidence": "General rendered-template resolution replaces name/level tokens. New unresolved events must remain active findings."
+    },
+    {
+      "id": "p2-native-camp-hints",
+      "match": {
+        "rules": [
+          "protected-hint-suppressed"
+        ],
+        "game": "P2"
+      },
+      "implementedIn": "0.6.52",
+      "status": "implemented-awaiting-gameplay",
+      "evidence": "Native colony message IDs 162,166,167,174 protected once per camp visit; current game language comes from the current owner."
+    },
+    {
+      "id": "old-p2-item-index-error",
+      "match": {
+        "rules": [
+          "observer-error"
+        ],
+        "keyPrefix": "p2-camp-navigation-error:System.ArgumentOutOfRangeException"
+      },
+      "affectedHashes": [
+        "3E53C500572661598F2AF8507ACEB0EA10E300DC52023BE058EB6F77FD1AC80C"
+      ],
+      "status": "historical-reviewed-not-current-proof",
+      "evidence": "Only this 0.6.35 artifact is reviewed. The same error under any other DLL hash remains actionable."
+    },
+    {
+      "id": "native-owned-settings-save-windows",
+      "match": {
+        "rules": [
+          "window-state-unverified"
+        ]
+      },
+      "implementedIn": "0.6.52",
+      "status": "implemented-awaiting-gameplay",
+      "evidence": "Native IsClosed/active ownership telemetry and dedicated open settings-popup reading. No language blacklist. Unknown/new-version open failures are not hidden."
+    }
+  ],
+  "protectedHintFingerprints": {
+    "ea389f512da63669a561bd2f101cbd515ba6e3b6db65d1c12550ed0c3923663c": 162,
+    "a3b76ffae17cacd1c8398832ed2d4e64cf09c63f106e93026d8f33dceb8555b4": 166,
+    "30b89cd6e667f7d846c3ecb4ae5f8a83c688e3ba9b64566c5e68f35d309e40d6": 167,
+    "9ed4cdecfead7ee0fec8186dd046d22d209bc384ee6b8d23ccf00fa81f2e23e5": 174,
+    "b9dadda186dfcae85460f92d1c52368730d4bfe609966356136166a390ee5ba6": 162,
+    "0c961e7372268c592a0d5c0b1e91fc7f07fe773b2bba2cfdde5429bb42d35888": 166,
+    "c15b7537b3960c57609512bb6b24422d002f9bb8ad38bbbcfa003ca1e31b2211": 167,
+    "069e9da49f63463cc6b7ee4d52e8bb96b31c363826cb24d2a991445abe990cfd": 174,
+    "4cc390e508dce9acc03f52924491a480b612b5caef6f6cfc9d19484c9955b1bb": 162,
+    "ece2a689f9dbeff9c5544673c348944f0e0c0160ef5ca4603e7a271369f4cff4": 166,
+    "4a75378c5bb648c5dce07962f8c195d10ad7cc1eb7a5fc11270a2e673af9bfe2": 167,
+    "dd3322ca0da6be79338afd376b788d1cb4a87476e80cbf014a57f28523804fc7": 174,
+    "2348d41c98ed2aa92ba4522d77bfe89fc961dd36577ec554b9c75c7d40829a25": 162,
+    "1c399995754950078f6df75de0ad973625d6012b20aafc0856ce35d3c4b65a3c": 166,
+    "72fe718694cf737822249c541aed23ea53333c1c7539cc9289c2e1dac0fb68ea": 167,
+    "92924dc85cd5fe910a133f19cbd9960d7551526fb3aae4549c3d576f88704e7c": 174,
+    "b7f73c88cfa6b9ba3d49ec22dbd00656fd57d2206fffd270cb4664b971ece960": 162,
+    "7ede71bad35e25feb5a0242a1e6c96967f403120071694be9ca3a3b03d893da0": 166,
+    "07dceab4a3a302a0ab713e7d938f443aa53c39b8d3926e4b3ae891f617852003": 167,
+    "ddedde669f5ee823f009a7a6b4b38522f8c7ab3bc8906f602b6ddf42a9334500": 174,
+    "7449a319134d8fbd5da8676cfcddd2ba43db17366489ca93a62d4e8755507b85": 162,
+    "14ad48830252076fdd286aee747265340ff392fc1554ffd67048a6a0f7aa5f3a": 166,
+    "41200ee142dc3ddd7421b6c70bec57cec9141f8d5d9f1b3fd2f13eaa5c11b781": 167,
+    "d8e22df1394baeb600232921520695db9fe2b4a1eb5e624ddadae9288b1e9c42": 174,
+    "d45ee406633b4adfeb3d9a34253504a5dbc06843ca9978e963c446267f808862": 162,
+    "2126f5bc10a77869160bf5622297976a5ec4b3fd87c3f62fd66a2455b56118cf": 166,
+    "42e291fbc338e9e03c2ace3fbce78b1a42420894070f1ae4c7fd2aab35213b8e": 167,
+    "aadd865e63b7d01a97bb39ff304d59107ea38513661b8af0694bc05113132119": 174,
+    "fcd22ea6608bb56d4240ab25e54f3be1bd999c0fab0ab44dd2d161980241fd8c": 162,
+    "14514d1d080486c0d0f6ce70719a4121e0450249d20c258f52fb6d7ed49a4ce4": 166,
+    "79c229131175aaeb227a6176bb86381efda5baa4bf52d2c1781261291e8a1191": 167,
+    "9496930df54e06214a20893b7a98e4685d7ac3192db82d250a6be60d68696db7": 174,
+    "361d1adff8f2127779e6493aada92b95d3072d1a89e00876a25e2aabe46c8c05": 162,
+    "aa899729d0186e5e40d7cdda5c858d761db9afcc7582f03c475fa2d1edc22188": 166,
+    "3490adc49e2f7d8f3ccce79c991ff55f099ba768de347218c3b5a8407f25d305": 167,
+    "9ae6c840915008611a70854644d9d463a0f7a101e06294c46d642aaff32ae531": 174
+  }
+}

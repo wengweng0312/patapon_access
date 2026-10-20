@@ -4,11 +4,12 @@ from __future__ import annotations
 import argparse,bisect,collections,csv,datetime,hashlib,json,re,sys,unicodedata,math
 from pathlib import Path
 
-VERSION='1.0.0'
+from audit_rules import ResolutionRegistry,template_matches,script_clean
+VERSION='1.1.0'
 TAG=re.compile(r'<[^>]*>')
 DEFAULT_LOGS=Path('D:/SteamLibrary/steamapps/common/PATAPON12_REPLAY/BepInEx/accessibility-logs')
-SPEECH_KINDS={'dialogue-level-resolved','dialogue-queued','common-visible-text','selection-speech-ready','structured-ui-speech','inventory-result-reward-speech','minigame-reward-speech','speech-dispatch'}
-FILTER_KINDS={'battle-chant-suppressed','ambient-dialogue-suppressed','idle-chatter-repeat-suppressed','miracle-countdown-suppressed'}
+SPEECH_KINDS={'dialogue-template-resolved','settings-popup-speech','dialogue-level-resolved','dialogue-queued','common-visible-text','selection-speech-ready','structured-ui-speech','inventory-result-reward-speech','minigame-reward-speech','speech-dispatch'}
+FILTER_KINDS={'camp-hint-repeat-suppressed','battle-chant-suppressed','ambient-dialogue-suppressed','idle-chatter-repeat-suppressed','miracle-countdown-suppressed'}
 CONTEXT_KINDS=SPEECH_KINDS|FILTER_KINDS|{'mission-start','mission-end','boss-script-motion','boss-attack-marker','boss-attack-cue','cue-playback','weather-request','miracle-ten-seconds','p2-unit-page-navigation','p2-gimmick-motion-request'}
 
 def norm(value):
@@ -17,7 +18,7 @@ def norm(value):
 
 def clean(value):return re.sub(r'\s+',' ',TAG.sub('',str(value or ''))).strip()
 def texts(data):
-    return [data[k] for k in ('text','body','label','name','title') if isinstance(data.get(k),str) and data[k]]
+    return [data[k] for k in ('text','fullText','body','label','name','title') if isinstance(data.get(k),str) and data[k]]
 def minute(ms):
     seconds=max(0,int(ms)//1000);return f'{seconds//60}:{seconds%60:02d}'
 def safe_float(value,default=0):
@@ -26,7 +27,7 @@ def safe_float(value,default=0):
     except (ValueError,TypeError):return default
 
 def load_run(paths):
-    rows=[];issues=[];seen={};duplicates=0
+    rows=[];issues=[];seen={};duplicates=0;origin=None
     for p in paths:
         try:
             with p.open('rb') as f:
@@ -39,7 +40,16 @@ def load_run(paths):
                         issues.append({'file':str(p),'line':line_no,'kind':'invalid-line' if raw.endswith(b'\n') else 'partial-live-tail','error':str(e)[:180]});continue
                     if not isinstance(row.get('kind'),str):continue
                     row.setdefault('data',{})
-                    row['_file']=str(p);row['_line']=line_no;row['_ms']=safe_float(row.get('elapsedMs'))
+                    row['_file']=str(p);row['_line']=line_no
+                    if not row.get('run'):row['run']=re.sub(r'-\d+$','',p.stem)
+                    if row.get('elapsedMs') is not None:
+                        row['_ms']=safe_float(row['elapsedMs']);row['_timeSource']='elapsedMs'
+                    else:
+                        try:
+                            timestamp=datetime.datetime.fromisoformat(row.get('time','')).timestamp()
+                            if origin is None:origin=timestamp
+                            row['_ms']=(timestamp-origin)*1000;row['_timeSource']='wall-clock-derived'
+                        except (ValueError,TypeError):row['_ms']=0;row['_timeSource']='unknown'
                     key=(row.get('run'),row.get('seq'))
                     if key[1] is not None:
                         fingerprint=json.dumps({k:v for k,v in row.items() if not k.startswith('_')},sort_keys=True,ensure_ascii=False)
@@ -54,6 +64,7 @@ def load_run(paths):
 
 class Triage:
     def __init__(self):
+        self.registry=ResolutionRegistry();self.handled={}
         self.findings={};self.runs=[];self.missions=[];self.issues=[];self.counts=collections.Counter();self.profiles={};self.next_id=1
     def evidence(self,row,rows,times):
         i=bisect.bisect_left(times,row['_ms']-1500);j=bisect.bisect_right(times,row['_ms']+2000)
@@ -68,10 +79,16 @@ class Triage:
             context=sorted(context,key=lambda x:abs(x['elapsedMs']-row['_ms']))[:10];context.sort(key=lambda x:x['elapsedMs'])
         return {'run':row.get('run'),'mission':row.get('mission',0),'file':row['_file'],'line':row['_line'],'seq':row.get('seq'),'elapsedMs':row['_ms'],'kind':row['kind'],'data':row.get('data',{}),'context':context}
     def add(self,rule,level,confidence,title,detail,row,rows,times,game='',key='',action=''):
-        signature='|'.join([rule,game,key]);group=self.findings.get(signature)
+        resolution=self.registry.historical(rule,game,key,row)
+        bucket=self.handled if resolution else self.findings
+        signature='|'.join([rule,game,key]);group=bucket.get(signature)
         if group is None:
             group={'id':f'A{self.next_id:04d}','rule':rule,'severity':level,'confidence':confidence,'title':title,'detail':detail,'nextAction':action,'game':game,'key':key,'occurrences':0,'runs':[],'examples':[]}
-            self.next_id+=1;self.findings[signature]=group
+            if resolution:group['resolution']={k:resolution[k] for k in ('id','implementedIn','status','evidence') if k in resolution}
+            else:
+                prior=self.registry.matching(rule,game,key,row)
+                if prior:group['possibleRegressionOf']=prior['id']
+            self.next_id+=1;bucket[signature]=group
         group['occurrences']+=1
         run=row.get('run','unknown')
         if run not in group['runs']:group['runs'].append(run)
@@ -80,6 +97,21 @@ class Triage:
         self.issues.extend(issues)
         if not rows:return
         times=[r['_ms'] for r in rows];session=next((r['data'] for r in rows if r['kind']=='session'),{})
+        for row in rows:row['_version']=session.get('plugin','unknown');row['_hash']=session.get('pluginSha256')
+        template_events=[]
+        for row in rows:
+            if row['kind']=='game-event':
+                for value in row['data'].get('args',[]):
+                    if isinstance(value,str) and re.search(r'<N\d+>',value,re.I):template_events.append((row,value))
+        template_times=[row['_ms'] for row,value in template_events]
+        window_events=[r for r in rows if r['kind']=='native-window-state'];window_times=[r['_ms'] for r in window_events]
+        def window_state(row):
+            path=row['data'].get('path','');best=None;best_length=-1
+            limit=bisect.bisect_right(window_times,row['_ms']+600)
+            for w in window_events[:limit]:
+                prefix=w['data'].get('windowPath','')
+                if prefix and (path==prefix or path.startswith(prefix+'/')) and len(prefix)>=best_length:best=w;best_length=len(prefix)
+            return None if best is None else best['data'].get('open')
         dispatch=[r for r in rows if r['kind']=='speech-dispatch'];dispatch_times=[r['_ms'] for r in dispatch]
         queued=[r for r in rows if r['kind'] in SPEECH_KINDS-{'speech-dispatch'}];queue_times=[r['_ms'] for r in queued]
         filters=[r for r in rows if r['kind'] in FILTER_KINDS];filter_times=[r['_ms'] for r in filters]
@@ -104,7 +136,7 @@ class Triage:
                 if c['kind']=='speech-dispatch' and not c['data'].get('accepted'):continue
                 for t in texts(c['data']):
                     n=norm(t)
-                    if any(v in n or (len(n)>=4 and n in v) for v in ns):return True
+                    if any(v in n for v in ns):return True
             return False
         cue_rows=[r for r in rows if r['kind']=='boss-attack-cue'];cue_times=[r['_ms'] for r in cue_rows]
         def near_cue(r,before=0,after=700):
@@ -120,8 +152,13 @@ class Triage:
         self.runs.append({'run':run,'files':sorted({r['_file'] for r in rows}),'version':session.get('plugin','unknown'),'pluginSha256':session.get('pluginSha256'),'events':len(rows),'duplicatesIgnored':duplicates,'missionCount':len(mission_starts),'speechEvidence':'dispatch' if dispatch else 'queue-only','settingsKnown':bool(audio_settings),'invalidLines':len(issues),'lastElapsedMs':times[-1]})
         handled_text=set()
         for r in rows:
-            d=r['data'];k=r['kind'];game=games.get(r.get('mission',0),d.get('game',''));unit=d.get('unit','')
-            if k in FILTER_KINDS:self.counts['expected-filter-events']+=1
+            d=r['data'];k=r['kind'];game=games.get(r.get('mission',0),d.get('game',str(d.get('source','')).split('.')[0] if str(d.get('source','')).startswith(('P1.','P2.')) else ''));unit=d.get('unit','')
+            if k in FILTER_KINDS:
+                self.counts['expected-filter-events']+=1
+                hint_id=self.registry.hint_id(d.get('text','')) if game=='P2' and k=='ambient-dialogue-suppressed' else None
+                if hint_id is not None:self.add('protected-hint-suppressed','high','confirmed-source-filter','遊戲原有提示被閒聊過濾','已核對原生村落台詞編號 '+str(hint_id)+'；不能把原有遊戲提示一律當普通閒聊。',r,rows,times,game,key='P2:colony:'+str(hint_id),action='檢查原生提示保護與當前語言的台詞快取；新版再出現應當作回歸。')
+            if k=='dialogue-template-unresolved':
+                self.add('template-resolution-failed','medium','confirmed-unresolved-template','對話變數在期限內未取得顯示值','已嘗試解析，但名字或數字可能仍缺漏；這個新失敗不會被已處理清單隱藏。',r,rows,times,game,key=norm(d.get('template',''))[:180],action='核對同一句的實際顯示元件與時間；不要猜玩家名字。')
             if k=='speech-dispatch' and d.get('accepted') is False:
                 self.add('speech-delivery-failed','high','confirmed-api-result','文字未成功送入 NVDA','這是送出 API 的失敗結果；不是推測玩家有沒有聽見。',r,rows,times,game,key=d.get('reason','unknown'),action='檢查 NVDA 連線、控制器載入和回傳碼。')
             if k=='cue-playback' and not d.get('muted') and d.get('success') is False:
@@ -151,12 +188,27 @@ class Triage:
                     self.add('queued-not-dispatched','medium','needs-review','對話排隊後沒有對應送出紀錄','可能被後續對話覆蓋、取消或失去前景。需要檢查前後文，不代表應強制朗讀。',r,rows,times,game,key=norm(d.get('text',''))[:160],action='檢查覆蓋、取消與焦點紀錄，保留真正劇情和戰術提示。')
             if k!='text-change':continue
             value=clean(d.get('text',''));n=norm(value);path=d.get('path','')
+            owner_open=window_state(r)
+            if owner_open is False:self.counts['native-closed-window-skipped']+=1;continue
             if d.get('maxVisibleCharacters',1)==0 or d.get('visible') is False or safe_float(d.get('alpha',1),1)<.05:
                 self.counts['hidden-text-skipped']+=1;continue
             if not n or n.isdigit() or len(n)<4:
                 self.counts['numeric-or-short-text-skipped']+=1;continue
             if matches(r,filters,filter_times,1800):self.counts['text-matched-expected-filter']+=1;continue
             if matches(r,all_speech,speech_times,3500):self.counts['text-has-speech-pipeline']+=1;continue
+            template_evidence=None
+            lo=bisect.bisect_left(template_times,r['_ms']-3500);hi=bisect.bisect_right(template_times,r['_ms']+3500)
+            for event,raw in template_events[lo:hi]:
+                if event.get('mission',0)!=r.get('mission',0) or not template_matches(raw,value):continue
+                proxy={**event,'data':{'text':script_clean(raw)}}
+                if matches(proxy,filters,filter_times,1800):
+                    template_evidence='expected-filter';break
+                if matches(proxy,all_speech,speech_times,3500):template_evidence='partial-template';break
+            if template_evidence=='expected-filter':self.counts['template-matched-expected-filter']+=1;continue
+            if template_evidence=='partial-template':
+                self.add('template-substitution-gap','medium','template-pipeline-confirmed','對話有擷取，但名字或數字不同','原始模板與畫面符合，並有排入朗讀證據；是變數內容完整度問題，不是整句沒抓到。',r,rows,times,game,key=re.sub(r'\d+','*',path)+':'+n[:200],action='檢查顯示文字解析；新版若仍缺漏，不能沿用舊問題的已處理狀態。');continue
+            if owner_open is None and any(t in path for t in ('SaveDataManager/Canvas/Root/Information/','Setting/SettingWindow/Contents/ConfirmationWindows/')):
+                self.add('window-state-unverified','low','old-visibility-incomplete','舊確認視窗缺少開啟狀態證據','文字元件存在不代表視窗正在顯示；新版會記錄原生開關狀態，不能按日文或其他語言排除。',r,rows,times,game,key=re.sub(r'\d+','*',path),action='以原生視窗狀態配對；真正開啟卻沒有朗讀仍要列為疑點。');continue
             # Fixed UI labels, layout grids and lookup-only localizations are not
             # automatically faults. Prioritize actual balloons and hint windows.
             if not any(token in path.lower() for token in ('balloon','message','dialog','hint','tips','description')):
@@ -168,7 +220,7 @@ class Triage:
     def report(self):
         ranks={'high':0,'medium':1,'low':2}
         findings=sorted(self.findings.values(),key=lambda f:(ranks[f['severity']],-len(f['runs']),-f['occurrences'],f['id']))
-        return {'schema':1,'toolVersion':VERSION,'generatedAt':datetime.datetime.now().astimezone().isoformat(),'scope':'observed-runtime-events-only','limitations':['沒有紀錄的關卡、未出現的事件與畫面不能驗證。','沒有對應朗讀證據不等於確定漏讀；舊版通常缺少 NVDA 送出紀錄。','NVDA accepted 只表示控制器接受要求，不表示聲音播完或玩家聽見。','預警判定統計不是全遊戲覆蓋率，也不證明有足夠閃躲提前量。','同種類怪物可能同時出現；舊紀錄缺少實例識別時，時間比對可能混淆。','掃描器不修改遊戲、模組、存檔、按鍵或過濾規則。'],'runs':self.runs,'missions':self.missions,'counts':dict(self.counts),'findings':findings,'bossProfiles':list(self.profiles.values()),'inputIssues':self.issues}
+        return {'schema':1,'toolVersion':VERSION,'generatedAt':datetime.datetime.now().astimezone().isoformat(),'scope':'observed-runtime-events-only','limitations':['沒有紀錄的關卡、未出現的事件與畫面不能驗證。','沒有對應朗讀證據不等於確定漏讀；舊版通常缺少 NVDA 送出紀錄。','NVDA accepted 只表示控制器接受要求，不表示聲音播完或玩家聽見。','預警判定統計不是全遊戲覆蓋率，也不證明有足夠閃躲提前量。','同種類怪物可能同時出現；舊紀錄缺少實例識別時，時間比對可能混淆。','掃描器不修改遊戲、模組、存檔、按鍵或過濾規則。'],'runs':self.runs,'missions':self.missions,'counts':dict(self.counts),'handledHistory':list(self.handled.values()),'resolutionPolicy':self.registry.data.get('policy'),'findings':findings,'bossProfiles':list(self.profiles.values()),'inputIssues':self.issues}
 
 def discover(folder,latest):
     groups=collections.defaultdict(list)
@@ -191,6 +243,8 @@ def markdown(report):
         if text:lines.append(f'- 文字：{text}')
         if e['data'].get('unit'):lines.append(f'- 單位：{e["data"]["unit"]}；動作：{e["data"].get("motion","未取得")}')
         lines.append('')
+    lines+=['## 已處理的歷史項目','',f'共 {len(report.get("handledHistory",[]))} 類，仍保留原始證據；已實作不代表已完成遊玩驗證。新版若再次發生，仍會列為疑點。','']
+    for f in report.get('handledHistory',[]):lines.append(f'- {f["id"]}：{f["title"]}，{f["occurrences"]} 次；{f["resolution"]["status"]}。')
     lines+=['## 記錄完整性','',f'- 輸入問題：{len(report["inputIssues"])} 筆（可能包含遊戲仍在寫入的最後半行）。',f'- 刻意過濾事件：{report["counts"].get("expected-filter-events",0)} 筆，沒有直接列成錯誤。',f'- 僅有排隊證據的執行：{sum(r["speechEvidence"]=="queue-only" for r in report["runs"])} 次。','','## 判讀限制','']+['- '+s for s in report['limitations']]
     return '\n'.join(lines)+'\n'
 
@@ -198,6 +252,7 @@ def write_report(report,out):
     out.mkdir(parents=True,exist_ok=True)
     (out/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     (out/'summary.md').write_text(markdown(report),encoding='utf-8')
+    (out/'handled-history.json').write_text(json.dumps(report.get('handledHistory',[]),ensure_ascii=False,indent=2),encoding='utf-8')
     with (out/'findings.jsonl').open('w',encoding='utf-8') as f:
         for x in report['findings']:f.write(json.dumps(x,ensure_ascii=False)+'\n')
     with (out/'missions.csv').open('w',encoding='utf-8-sig',newline='') as f:

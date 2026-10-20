@@ -37,3 +37,11 @@ python -m unittest discover -s tools/PataponAudit -p test_audit.py
 ```
 
 測試涵蓋明確失敗、候選文字、刻意過濾、隱藏文字、跨任務隔離、音效靜音、不同怪物提示、分卷去重和未寫完的最後一行。
+
+## 已處理與回歸判斷（1.1）
+
+`resolutions.json` 記錄修正版本、精確適用範圍和驗證程度。舊版符合的項目移至 `handled-history.json`，仍保留證據；不再混在待查清單。已實作但未玩過的標為 implemented-awaiting-gameplay。
+
+新版本再次出現相同事件，會留在待查清單並標記 possibleRegressionOf。版本未知、不在適用範圍、音效 API 失敗，以及新的模板解析失敗，都不會被舊修正紀錄掩蓋。
+
+掃描器也會處理舊格式時間、模板替換差異，並在有原生視窗狀態時排除已關閉視窗。沒有依日文、中文或其他語言直接刪除文字。
