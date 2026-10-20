@@ -41,7 +41,7 @@ internal static class Monitor
             run=DateTime.Now.ToString("yyyyMMdd-HHmmss")+"-"+Environment.ProcessId;
             OpenPart();
             string assembly=typeof(Plugin).Assembly.Location;
-            Record("session",new { plugin="0.6.48", schema=2, unity=Application.unityVersion, process=Environment.ProcessId, runtime=System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription, pluginSha256=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(assembly))) });
+            Record("session",new { plugin=Plugin.ModVersion, schema=2, unity=Application.unityVersion, process=Environment.ProcessId, runtime=System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription, pluginSha256=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(assembly))) });
             var h=new Harmony("org.patapon.access.monitor");
             TitleAccess.Install(h);
             // Read-only observations of dialogue presentation and localization lookups.
@@ -140,12 +140,14 @@ internal static class Monitor
             var go=EventSystem.current?EventSystem.current.currentSelectedGameObject:null;
             string path=go?PathOf(go!.transform):"";
             if(path!=focus) {focus=path;Record("ui-focus",new{path});}
+            NativeWindowAudit.Tick();
             var seen=new HashSet<int>();
             foreach(var t in UnityEngine.Object.FindObjectsOfType<TMP_Text>().Take(2000)) {
                 if(!t || !t.isActiveAndEnabled) continue;
                 int id=t.GetInstanceID(); seen.Add(id);
-                string value=t.text??"";
-                if(!texts.TryGetValue(id,out var old)||old!=value) {texts[id]=value;Record("text-change",new{id,path=PathOf(t.transform),component="TMP",text=value,maxVisibleCharacters=t.maxVisibleCharacters});}
+                string value=t.text??"";bool visible=t.maxVisibleCharacters!=0&&t.color.a>=0.05f;
+                string signature=value+"\0"+visible;
+                if(!texts.TryGetValue(id,out var old)||old!=signature) {texts[id]=signature;Record("text-change",new{id,path=PathOf(t.transform),component="TMP",text=value,maxVisibleCharacters=t.maxVisibleCharacters,visible,alpha=t.color.a,visibilityEvidence="active component, alpha and character limit; canvas occlusion unknown"});}
             }
             foreach(var t in UnityEngine.Object.FindObjectsOfType<Text>().Take(2000)) {
                 if(!t || !t.isActiveAndEnabled) continue;

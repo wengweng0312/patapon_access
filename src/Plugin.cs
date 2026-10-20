@@ -11,9 +11,10 @@ using TMPro;
 
 namespace PataponAccess;
 
-[BepInPlugin("org.patapon.access.start", "Patapon Start Screen Access", "0.6.49")]
+[BepInPlugin("org.patapon.access.start", "Patapon Start Screen Access", Plugin.ModVersion)]
 public class Plugin : BasePlugin
 {
+    public const string ModVersion="0.6.58";
     private Reader? reader;
     public override void Load()
     {
@@ -31,6 +32,7 @@ public class Plugin : BasePlugin
         bool diagnostics=Config.Bind("Diagnostics", "Enabled", true, "Record local UI and message events for accessibility development.").Value;
         Monitor.Initialize(diagnostics, Config.Bind("Diagnostics", "AutoCleanLogs", true, "Clean old accessibility event logs on startup.").Value, Config.Bind("Diagnostics", "LogRetentionDays", 7, "Keep event logs for this many days (1-3650).").Value, Config.Bind("Diagnostics", "LogMaxTotalMB", 200, "Startup event log size limit in MiB (50-10240); current session is additional.").Value);
         HeroSongVolume.Initialize(Config);
+        CampHintAccess.Install();
         MiracleAccess.Install(Config);
         BattleMonitor.Install(diagnostics && Config.Bind("Diagnostics", "Battle", true, "Record P1/P2 scalar attack checks, collision call counts and weather requests without reading native object fields.").Value);
         RangeMonitor.Install(diagnostics,Config.Bind("Audio", "EnemyRangeCue", true, "Experimental cue on rising P1/P2 long enemy sight flag; does not indicate hit.").Value);
@@ -38,7 +40,9 @@ public class Plugin : BasePlugin
         NameInputAccess.Install();
         RewardAccess.Install();
         EnemyRangeGeometry.Install();
-        BossAttackCue.Install(Config.Bind("Audio","BossAttackCue",true,"Experimental P1 boss script preparation cue with verified startup fallbacks.").Value);
+        bool bossAttackEnabled=Config.Bind("Audio","BossAttackCue",true,"Experimental P1 boss script preparation cue with verified startup fallbacks.").Value;
+        BossAttackCue.Install(bossAttackEnabled);
+        Monitor.Record("audit-settings",new{bossAttackCue=bossAttackEnabled,quietCampChatter=DialogueAccess.QuietCampChatter,readBattleChants=BattleChants.Enabled});
         P2BossAccess.Install();
         CannonWarning.InstallTrace(diagnostics);
         SceneMechanismLogger.Install(diagnostics);
@@ -52,7 +56,7 @@ public class Plugin : BasePlugin
         CartRange.Install(Config.Bind("Audio","CartRangeCue",true,"Experimental P1 wagon-specific sight cue with distinct chimes; no hit guarantee.").Value);
         VegetableCue.Install(Config.Bind("Audio","VegetableCatchCue",true,"Experimental P1/P2 vegetable countdown cue; does not press keys.").Value,Config.Bind("Audio","VegetableLeadFrames",12,"Experimental lead in native item update frames, 1-35; not a verified judgement time.").Value);
         reader=AddComponent<Reader>();
-        Log.LogInfo("Start screen accessibility loaded. F1: help, F2: repeat, F3: visible text, F4: stop.");
+        Log.LogInfo("Start screen accessibility loaded. F1: help, F2: context guide, F3: repeat, F4: visible text, F5: stop, F7: cue test, F8: range.");
     }
 }
 
@@ -81,8 +85,16 @@ internal static class Speech
         if(string.IsNullOrWhiteSpace(text)) return;
         Last = text;
         Reader.Log.LogInfo("SPEAK: " + text);
-        if(running?.Invoke() == 0) { stop?.Invoke(); var result=say?.Invoke(text); if(result!=0) Reader.Log.LogWarning("NVDA speech result: "+result); }
-        else Reader.Log.LogWarning("NVDA is not running or cannot be reached.");
+        if(running?.Invoke() == 0) {
+            stop?.Invoke();var result=say?.Invoke(text);
+            CampHintAccess.Dispatched(text,result==0);
+            Monitor.Record("speech-dispatch",new{text,backend="NVDA",accepted=result==0,result,reason=result==0?"controller-accepted":"controller-error",meaning="API acceptance only; not proof of completed playback"});
+            if(result!=0)Reader.Log.LogWarning("NVDA speech result: "+result);
+        } else {
+            CampHintAccess.Dispatched(text,false);
+            Monitor.Record("speech-dispatch",new{text,backend="NVDA",accepted=false,reason="controller-unavailable",meaning="API acceptance only; not proof of completed playback"});
+            Reader.Log.LogWarning("NVDA is not running or cannot be reached.");
+        }
     }
     public static void Stop() => stop?.Invoke();
     public static string Clean(string text) => Regex.Replace(Regex.Replace(text ?? "", @"<[^>]*>", " "), @"\s+", " ").Trim();
@@ -106,7 +118,7 @@ public class Reader : MonoBehaviour
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int key);
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint pid);
-    private readonly bool[] keyDown = new bool[7];
+    private readonly bool[] keyDown = new bool[8];
 
     public void Update()
     {
@@ -115,23 +127,25 @@ public class Reader : MonoBehaviour
             Monitor.Tick();
             GetWindowThreadProcessId(GetForegroundWindow(), out var pid);
             if(pid != Environment.ProcessId) return;
-            if(!announced){announced=true;Speech.Speak("模組載入完成。需要操作說明或音效試聽，請按 F1 查看模組幫助。");nextPoll=Time.unscaledTime+2.5f;}
-            for(int i=0;i<7;i++) {
+            if(!announced){announced=true;Speech.Speak("模組載入完成。需要操作說明或音效試聽，請按 F1。需要當前畫面引導幫助，請按 F2。");nextPoll=Time.unscaledTime+2.5f;}
+            for(int i=0;i<8;i++) {
                 bool down=(GetAsyncKeyState(0x70+i)&0x8000)!=0;
                 if(down && !keyDown[i]) {
                     if(i==0){pending="";DialogueAccess.Clear();CommonUi.Clear();ModuleHelp.Toggle();keyDown[i]=down;continue;}
+                    else if(i==1){ContextGuide.Speak();keyDown[i]=down;continue;}
                     else if(ModuleHelp.Active){ModuleHelp.Handle(i);keyDown[i]=down;continue;}
-                    if(!ModuleHelp.Active && i==1) Speech.Speak(DrumPuzzleAccess.RepeatText.Length>0?DrumPuzzleAccess.RepeatText:P2CampNavigation.RepeatText.Length>0?P2CampNavigation.RepeatText:P2EvolutionAccess.RepeatText.Length>0?P2EvolutionAccess.RepeatText:P2TreasureAccess.RepeatText.Length>0&&!CommonUi.CommandWindowActive?P2TreasureAccess.RepeatText:StructuredUi.RepeatText.Length>0?StructuredUi.RepeatText:RewardAccess.IsResultActive?RewardAccess.RepeatText:NameInputAccess.IsActive?NameInputAccess.RepeatText:OpeningAccess.IsActive?OpeningAccess.RepeatText:CommonUi.RepeatText.Length>0?CommonUi.RepeatText:string.IsNullOrEmpty(focusText)?Speech.Last:focusText);
-                    if(!ModuleHelp.Active && i==2) Speech.Speak(VisibleText());
-                    if(!ModuleHelp.Active && i==3) { pending=""; DialogueAccess.Clear(); CommonUi.Clear(); Speech.Stop(); }
-                    if(!ModuleHelp.Active && i==5) AttackCue.Test();
-                    if(!ModuleHelp.Active && i==6) Speech.Speak(RangeMonitor.CurrentStatus);
+                    if(!ModuleHelp.Active && i==2) Speech.Speak(SettingsPopupAccess.RepeatText.Length>0?SettingsPopupAccess.RepeatText:DrumPuzzleAccess.RepeatText.Length>0?DrumPuzzleAccess.RepeatText:P2CampNavigation.RepeatText.Length>0?P2CampNavigation.RepeatText:P2EvolutionAccess.RepeatText.Length>0?P2EvolutionAccess.RepeatText:P2TreasureAccess.RepeatText.Length>0&&!CommonUi.CommandWindowActive?P2TreasureAccess.RepeatText:StructuredUi.RepeatText.Length>0?StructuredUi.RepeatText:RewardAccess.IsResultActive?RewardAccess.RepeatText:NameInputAccess.IsActive?NameInputAccess.RepeatText:OpeningAccess.IsActive?OpeningAccess.RepeatText:CommonUi.RepeatText.Length>0?CommonUi.RepeatText:string.IsNullOrEmpty(focusText)?Speech.Last:focusText);
+                    if(!ModuleHelp.Active && i==3) Speech.Speak(VisibleText());
+                    if(!ModuleHelp.Active && i==4) { pending=""; DialogueAccess.Clear(); CommonUi.Clear(); Speech.Stop(); }
+                    if(!ModuleHelp.Active && i==6) AttackCue.Test();
+                    if(!ModuleHelp.Active && i==7) Speech.Speak(RangeMonitor.CurrentStatus);
                 }
                 keyDown[i]=down;
             }
             if(ModuleHelp.Active){ModuleHelp.Tick();return;}
             if(Time.unscaledTime < nextPoll) return;
             nextPoll=Time.unscaledTime+0.1f;
+            if(SettingsPopupAccess.Scan()){pending="";return;}
             if(StructuredUi.Scan()){pending="";return;}
             if(NameInputAccess.Scan()) {pending="";return;}
             MiracleAccess.Tick();
@@ -162,7 +176,7 @@ public class Reader : MonoBehaviour
             string text=selected ? Describe(selected!) : "";
             if(!announced && launcher) {
                 announced=true;
-                Speech.Speak("模組載入完成。需要操作說明或音效試聽，請按 F1 查看模組幫助。");
+                Speech.Speak("模組載入完成。需要操作說明或音效試聽，請按 F1。需要當前畫面引導幫助，請按 F2。");
             }
             bool changedContext=currentContext!=context;
             if(changedContext || id!=focusId || text!=focusText) {

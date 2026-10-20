@@ -14,6 +14,7 @@ internal static class P2CampNavigation
     public static bool ItemMenuActive=>Environment.TickCount64-Math.Max(normalMenuSeen,menuSeen)<500;
     public static string RepeatText=>ItemMenuActive?selectionRepeat:Environment.TickCount64-unitSeen<500?unitRepeat:"";
     public static bool UnitPageActive=>Environment.TickCount64-unitSeen<500;
+    public static bool TreeActive=>Environment.TickCount64-activeTreeSeen<500;
     private static IntPtr activeTree;
     private static long activeTreeSeen;
     private static IntPtr gridOwner;
@@ -155,9 +156,11 @@ internal static class P2CampNavigation
             string signature=$"{model.Pointer}:{model.unitID_}:{slot}:{rare}:{param?.evolutionClassLevel}";
             bool changed=entered||signature!=unitKey;unitSeen=now;unitKey=signature;
             if(!changed)return;
-            unitRepeat=P2NavigationText.UnitPage(slot,form,param?.evolutionClassLevel??0,entered);
+            int total=checked((int)(model.squad_?.numUnit_??0));
+            unitRepeat=P2NavigationText.UnitPosition(unchecked((int)model.unitID_),total)+"，"+P2NavigationText.UnitPage(slot,form,param?.evolutionClassLevel??0,entered);
+            if(entered)unitRepeat+="。切換士兵，先退出裝備清單，再按 "+Key(MultiPlatformInputManager.AllAction.Menu_SelectLeft)+" 或 "+Key(MultiPlatformInputManager.AllAction.Menu_SelectRight);
             CommonUi.QueueSelection(unitRepeat);
-            Monitor.Record("p2-unit-page-navigation",new{unit=model.unitID_,slot,rare,level=param?.evolutionClassLevel,form,text=unitRepeat});
+            Monitor.Record("p2-unit-page-navigation",new{unit=model.unitID_,total,slot,rare,level=param?.evolutionClassLevel,form,text=unitRepeat});
         }catch(Exception e){Error(e);}
     }
     private static void ReadMenu(string text,int index,string context,bool reopened,ref string prior)

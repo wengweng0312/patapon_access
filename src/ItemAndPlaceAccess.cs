@@ -7,6 +7,8 @@ internal static class ItemAndPlaceAccess
 {
     private static string lastItem="",lastPlace="";
     private static string lastEquipment="";
+    private static long campSeen;
+    public static bool CampActive=>Environment.TickCount64-campSeen<500;
     public static string CurrentItemName {get;private set;}="";
     private static long equipmentSeen;
     public static bool EquipmentActive=>Environment.TickCount64-equipmentSeen<500||P2CampNavigation.ItemMenuActive||P2CampNavigation.UnitPageActive;
@@ -99,9 +101,11 @@ internal static class ItemAndPlaceAccess
         try {
             string name="";uint id=0;
             if(__instance is P1.Bases.Camp.Parts.PartsSelector s1) {
+                campSeen=s1.selectLock_?0:Environment.TickCount64;
                 var facility=s1.getSelectParts()?.TryCast<P1.Bases.Camp.Facility.Facility>();
                 if(facility==null) return;name=facility.getName();id=facility.getId();
             } else if(__instance is P2.Bases.Camp.Parts.PartsSelector s2) {
+                campSeen=s2.selectLock_?0:Environment.TickCount64;
                 var facility=s2.getSelectParts()?.TryCast<P2.Bases.Camp.Facility.Facility>();
                 if(facility==null) return;name=facility.getName();id=facility.getId();
             }

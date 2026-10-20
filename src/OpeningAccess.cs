@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using UnityEngine;
@@ -14,7 +14,7 @@ internal static class OpeningAccess
     private const string Contract="致以世界盡頭為目標之者。只要汝，手中持有此太鼓，就必須做為 PATAPON 的神，為其繁盛鞠躬盡瘁。即便，感受律動之力不足，也絕對不要放棄，學習神之技。無止盡的努力的成果，必定會閃耀光芒的盛世造訪人間。汝，要是同意此約定的話，就做為 PATAPON 之神，拿起此太鼓吧。";
     private const string ContractP2="神明的契約書。吾以抵達世界的盡頭為目標，立誓成為 PATAPON 的神明。即便對節奏沒有自信，或是在途中想要半途而廢時，亦會絕對堅持到底。吾保證遵守此契約，化身 PATAPON 的神明，手執勇氣之太鼓。特此立誓。";
     private static string currentContract=Contract;
-    private const string Instructions="方向鍵移動羽毛；Tab 將羽毛移到同意；移到後按遊戲的確認鍵，預設 Enter。F2 重讀誓約與操作說明。";
+    private const string Instructions="方向鍵移動羽毛；Tab 將羽毛移到同意；移到後按遊戲的確認鍵，預設 Enter。F3 重讀誓約與操作說明。";
     public static string RepeatText=>currentContract+Instructions+zone;
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int key);
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();

@@ -25,3 +25,15 @@ Check(tracker.Say("save-1","確定是否覆寫？","是")=="是","cursor change 
 Check(tracker.Say("gift-1","大眼捲心菜。要給他道具嗎？","否").Contains("要給他道具嗎？"),"new dialog gets its question");
 Check(tracker.Say("gift-1","大眼捲心菜。要給他道具嗎？","是")=="是","gift cursor change speaks yes only");
 tracker.Reset();Check(tracker.Say("gift-1","要給他道具嗎？","否")=="要給他道具嗎？ 否","reopened dialog reads question again");
+var intro=new SquadIntroTracker();
+Check(intro.Say("出擊部隊選擇。神槍PON。平均生命 166")=="出擊部隊選擇。神槍PON。平均生命 166","squad heading on first item");
+Check(intro.Say("出擊部隊選擇。騎士PON。平均生命 220")=="騎士PON。平均生命 220","heading omitted on change, stats retained");
+intro.Reset();Check(intro.Say("騎士PON")=="出擊部隊選擇。騎士PON","heading restored after leaving and supports P2 name-first");
+string Guide(string context)=>ContextGuideText.Describe(context,"Enter","Escape","Left","Right","R");
+Check(Guide("squad").Contains("Enter 確認")&&Guide("squad").Contains("F3"),"squad guide uses binding and new repeat key");
+Check(Guide("evolution").Contains("素材需求")&&!Guide("evolution").Contains("永久"),"evolution guide distinct from retirement");
+Check(Guide("unit").Contains("Left、Right")&&Guide("unit").Contains("永久退役"),"unit guide switches soldier and identifies destructive key");
+Check(Guide("help").Contains("F3")&&Guide("battle").Contains("F8"),"help and battle new bindings");
+Check(Guide("unknown").Contains("尚未辨識"),"unknown context makes no unsupported claims");
+Check(ContextGuideText.Village("Q","E","Enter","Tab")=="村落。Q、E 切換設施，也可使用左右方向鍵。Enter 查看，Tab 保存，Escape 返回標題畫面。","village guide includes tested arrow alternative"); Check(ContextGuideText.Village("J","K","Space","T").Contains("J、K 切換設施")&&ContextGuideText.Village("J","K","Space","T").Contains("T 保存"),"village respects current bindings");
+Check(Guide("preparation").Contains("Tab 出發")&&Guide("preparation").Contains("R 開啟裝備")&&Guide("preparation").Contains("F3"),"preparation guide covers departure and equipment");

@@ -15,7 +15,7 @@ internal static class P2BossAccess
         Patch(h,typeof(P2.GameSystem.Actor.Script.ScriptCommand_Actor),"resetAttackUniqueId",nameof(ActorAttack));
         Patch(h,typeof(P2.Game.Talk.CommandUnitBase),"setMotion",nameof(UnitMotion));
         Patch(h,typeof(P2.Game.Talk.CommandUnitBase),"resetAttackUniqueId",nameof(UnitAttack));
-        Monitor.Record("boss-observer",new{game="P2",scope="verified unitbase dragon startup addresses only; other boss script events observed without guessing cues"});
+        Monitor.Record("boss-observer",new{game="P2",scope="shared unitbase attack-phase startup structure; shark timer-helper variant; attack-frame markers remain diagnostic only"});
     }
     private static void Patch(Harmony h,Type type,string method,string callback)
     {
@@ -48,7 +48,7 @@ internal static class P2BossAccess
             if(!attack&&!entry&&previous.TryGetValue(key,out var old)&&old==state)return;
             if(previous.Count>128)previous.Clear();previous[key]=state;
             Monitor.Record(attack?"boss-attack-marker":"boss-script-motion",new{game="P2",unit,motion,action,phase,packAddress=address,attackEntry=entry});
-            if(entry)BossAttackCue.Special(key,unit,(int)motion,"p2-verified-dragon-script-preparation");
+            if(entry)BossAttackCue.Special(key,unit,(int)motion,"p2-shared-script-preparation");
         }catch(Exception e){long now=Environment.TickCount64;if(now-lastError>5000){lastError=now;Monitor.Record("boss-script-error",new{game="P2",error=e.Message});}}
     }
 }

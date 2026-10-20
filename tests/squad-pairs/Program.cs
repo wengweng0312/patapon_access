@@ -1,0 +1,12 @@
+using PataponAccess;
+var c=new List<SquadValuePairs.Cell>();
+void Add(string t,float x,float y)=>c.Add(new(t,x,y,10));
+Add("HP",0,100);Add("190",30,100);Add("Crit",100,100);Add("Ratio",115,100);Add("5 %",140,100);
+Add("Damage",0,80);Add("6 - 16",30,80);Add("KB",100,80);Add("10 %",140,80);
+Add("Resist Ignite",0,60);Add("0 %",30,60);Add("Ignite",100,60);Add("0 %",140,60);
+Add("盾兵PON",0,180);Add("騎士PON",0,160);
+var v=SquadValuePairs.Read(c);
+if(v[0]!="190"||v[1]!="6 - 16"||v[6]!="5 %"||v[7]!="10 %"||v[3]!="0 %"||v[9]!="0 %")throw new Exception("columns/duplicates");
+c.RemoveAll(x=>x.text=="190");v=SquadValuePairs.Read(c);if(!string.IsNullOrEmpty(v[0]))throw new Exception("crossed into right column");
+Add("HP",0,100);v=SquadValuePairs.Read(c);if(!string.IsNullOrEmpty(v[0]))throw new Exception("ambiguous label");
+Console.WriteLine("PASS row/column alignment, repeated zero values, unrelated names, missing value and ambiguous label rejection. Not gameplay validation.");

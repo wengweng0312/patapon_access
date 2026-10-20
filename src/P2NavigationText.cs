@@ -1,6 +1,7 @@
 namespace PataponAccess;
 internal static class P2NavigationText
 {
+    public static string UnitPosition(int index,int total)=>index<0?"士兵位置未取得":total>index?$"第 {index+1} 位士兵，共 {total} 位":$"第 {index+1} 位士兵";
     public static string UnitPage(int slot,string form,int level,bool entered)
     {
         string current=string.IsNullOrWhiteSpace(form)?"":"，目前型態 "+form+(level>0?"，等級 "+level:"");

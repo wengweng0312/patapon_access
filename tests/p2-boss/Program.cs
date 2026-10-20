@@ -10,8 +10,19 @@ foreach(var (offset,motion) in new[]{(0x1345c,8),(0x1398c,13),(0x13ec0,16),(0x14
  foreach(string unit in new[]{"unit201_01_01","unit208_01_01","unit242_01_01"})Check(P2BossRules.IsEntry(unit,10,0,address,header,next),unit+" phase0 startup "+motion);
  Check(!P2BossRules.IsEntry("unit201_01_01",10,1,address,header,next),"late phase excluded "+motion);
  Check(!P2BossRules.IsEntry("unit201_01_01",9,0,address,header,next),"nonattack action excluded "+motion);
- Check(!P2BossRules.IsEntry("unit211_01_01",10,0,address,header,next),"other boss cannot inherit dragon addresses "+motion);
- Check(!P2BossRules.IsEntry("unit201_01_01",10,0,address-8,header,next),"P1 argument length rejected "+motion);
+ Check(P2BossRules.IsEntry("unit211_01_01",10,0,address,header,next),"shared straight-entry pattern works across boss families "+motion);
+ Check(!P2BossRules.IsEntry("unit111_01_01",10,0,address,header,next),"non-P2 family excluded "+motion);
+ Check(!P2BossRules.IsEntry("unit201_01_01",10,0,address+2,header,next),"misaligned continuation rejected "+motion);
 }
 Console.WriteLine(count+" checks passed. Not a gameplay/audio test.");
 
+foreach(var (unit,address) in new[]{("unit217_01_01",267524),("unit217_01_01",266988),("unit218_01_01",281272),("unit237_01_01",663468),("unit228_01_01",519272),("unit224_01_01",432412)}){
+ var next=pack.AsSpan(address,128).ToArray();
+ Check(P2BossRules.IsEntry(unit,10,0,address,pack.AsSpan(0,8),next),"reviewed shared/helper startup "+unit);
+ Check(!P2BossRules.IsEntry(unit,10,1,address,pack.AsSpan(0,8),next),"later phase excluded "+unit);
+ if(unit is "unit217_01_01" or "unit218_01_01" or "unit237_01_01"){
+  next[24]^=1;
+  Check(!P2BossRules.IsEntry(unit,10,0,address,pack.AsSpan(0,8),next),"unknown helper rejected "+unit);
+ }
+}
+Console.WriteLine(count+" total checks passed. Requires local fixture; no game assets are distributed.");

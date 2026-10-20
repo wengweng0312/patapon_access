@@ -17,13 +17,18 @@ internal static class StructuredUi
     private static string gift="",squad="",candidate="",spoken="",repeat="";
     private static long giftSeen,squadSeen,changedAt;
     private static bool active;
+    public static string ContextKind {get;private set;}="";
+    private static readonly SquadIntroTracker squadIntro=new();
     public static string RepeatText=>active?repeat:"";
+    private static string squadKind="squad";
+    internal static void PublishSquad(string text,string kind="squad"){squad=text;squadKind=kind;squadSeen=Environment.TickCount64;}
     private static object? Get(object o,string name)=>o.GetType().GetProperty(name)?.GetValue(o);
     private static object? Call(object o,string name,params object[] args)=>o.GetType().GetMethod(name)?.Invoke(o,args);
     private static IntPtr Ptr(object o)=>((Il2CppObjectBase)o).Pointer;
     public static void Install()
     {
         var h=new Harmony("org.patapon.access.structured-ui");
+        P2SquadAccess.Install(h);
         foreach(string ns in new[]{"P1","P2"}) {
             Patch(h,ns+".Bases.Item.Dialog","setup",nameof(DialogSetup));
             Patch(h,ns+".Bases.Item.PresentDialog","update",nameof(Gift));
@@ -50,7 +55,11 @@ internal static class StructuredUi
     private static void Squad(object __instance)
     {
         try {
-            if(Call(__instance,"isActive") is not true||ItemAndPlaceAccess.EquipmentActive)return;
+            if((Call(__instance,"isActive") is not true&&Get(__instance,"isActiveStatusDisplay_") is not true)||ItemAndPlaceAccess.EquipmentActive)return;
+            // An active native status page owns its readout even while resources
+            // are loading. Never fall back to a soup of pooled background text.
+            squadKind="squad";squad="部隊狀態，資料尚未取得";
+            squadSeen=Environment.TickCount64;
             int index=Convert.ToInt32(Get(__instance,"selectIndex_"));var indices=Get(__instance,"paramIndexArray_");int total=indices==null?0:Convert.ToInt32(Get(indices,"Count"));
             if(index<0||index>=total)return;
             // getSelectSquad returns the currently assigned squad, not the replacement cursor.
@@ -62,9 +71,10 @@ internal static class StructuredUi
             var display=Get(__instance,"statusDisplay_");
             string[] values=Array.Empty<string>();
             if(game=="P1"&&(display==null||!stats.TryGetValue(Ptr(display),out values!)||values.Any(string.IsNullOrWhiteSpace)))return;
+            if(game=="P2")values=SquadScreenValues.Read();
             int reborn=0,missions=0;var units=Call(__instance,"getSelectAddingParam");
             if(units!=null)for(int i=0;i<Math.Min(64,Convert.ToInt32(Get(units,"Count")));i++){var unit=Call(units,"get_Item",i);if(unit==null)continue;reborn+=Convert.ToInt32(Get(unit,"deadCount"));missions=Math.Max(missions,Convert.ToInt32(Get(unit,"missionCount")));}
-            squad=ReadoutText.Squad(name,index,total,Math.Clamp(reborn,0,999),Math.Clamp(missions,0,999),values);squadSeen=Environment.TickCount64;
+            squad=game=="P2"?SquadScreenValues.Describe(name,index,total,reborn,missions,values):ReadoutText.Squad(name,index,total,Math.Clamp(reborn,0,999),Math.Clamp(missions,0,999),values);squadSeen=Environment.TickCount64;
         }catch(Exception e){Reader.Log.LogWarning("Squad readout: "+e.Message);}
     }
     private static void DialogSetup(object __instance,int __1,object __2,int __3,object __4)
@@ -108,11 +118,13 @@ internal static class StructuredUi
         bool giving=save.Length==0&&now-giftSeen<250;
         if(giving)choice=giftChoice;
         string text=ReadoutText.Select(save,giving?gift:"",now-squadSeen<250?squad:"",CommonUi.CommandWindowActive);
-        if(text.Length==0){if(active){if(!ItemAndPlaceAccess.EquipmentActive)CommonUi.Clear();DialogueAccess.Clear();}active=false;candidate=spoken=repeat="";dialogSpeech.Reset();return false;}
+        if(text.Length==0){if(active){if(!ItemAndPlaceAccess.EquipmentActive)CommonUi.Clear();DialogueAccess.Clear();}active=false;ContextKind="";squadIntro.Reset();candidate=spoken=repeat="";dialogSpeech.Reset();return false;}
+        ContextKind=save.Length>0?"save-confirm":giving?"gift-confirm":squadKind;
+        if(ContextKind!="squad")squadIntro.Reset();
         if(!active){CommonUi.Clear();DialogueAccess.Clear();}active=true;repeat=text;
         string signature=choice==null?text:choice.key+"|"+text;
         if(signature!=candidate){candidate=signature;changedAt=now;}
-        if(signature!=spoken&&now-changedAt>=180){spoken=signature;string speech=choice==null?text:dialogSpeech.Say(choice.key,choice.prompt,choice.selected);if(choice==null)dialogSpeech.Reset();Speech.Speak(speech);Monitor.Record("structured-ui-speech",new{text=speech,fullText=text});}
+        if(signature!=spoken&&now-changedAt>=180){spoken=signature;string speech=choice==null?(ContextKind=="squad"?squadIntro.Say(text):text):dialogSpeech.Say(choice.key,choice.prompt,choice.selected);if(choice==null)dialogSpeech.Reset();Speech.Speak(speech);Monitor.Record("structured-ui-speech",new{text=speech,fullText=text});}
         return true;
     }
 }

@@ -106,7 +106,7 @@ internal static class CommonUi
             string name=t.name;
             if(!name.StartsWith("DrumNormalText_") && !(name.StartsWith("DrumSysmteText_") && !hasWindow)) continue;
             string text=Speech.Clean(t.text);
-            if(text.Length==0) continue;
+            if(text.Length==0||text=="SQUAD STATUS") continue;
             if(BattleChants.SuppressVisible(DialogueText.Clean(t.text)))continue;
             var p=t.transform.position;
             values.Add((text,p.x,p.y));
