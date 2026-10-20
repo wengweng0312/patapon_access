@@ -1,6 +1,7 @@
 using PataponAccess;
 int count=0;
 void Check(bool value,string label){if(!value)throw new Exception(label);count++;Console.WriteLine("PASS "+label);}
+if(args.Length==0){Console.WriteLine("SKIP: provide a local P2 boss script fixture path; game files are not distributed.");return;}
 byte[] pack=File.ReadAllBytes(args[0]);
 foreach(var (offset,motion) in new[]{(0x1345c,8),(0x1398c,13),(0x13ec0,16),(0x1424c,19)}){
  Check(BitConverter.ToInt32(pack,offset)==0x00081625&&BitConverter.ToInt32(pack,offset+8)==motion,"real P2 preparation motion "+motion);
@@ -13,3 +14,4 @@ foreach(var (offset,motion) in new[]{(0x1345c,8),(0x1398c,13),(0x13ec0,16),(0x14
  Check(!P2BossRules.IsEntry("unit201_01_01",10,0,address-8,header,next),"P1 argument length rejected "+motion);
 }
 Console.WriteLine(count+" checks passed. Not a gameplay/audio test.");
+
