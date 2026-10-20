@@ -7,3 +7,10 @@
 .vs/
 releases/
 payload/
+
+# Local audit output and Python caches
+**/__pycache__/
+*.pyc
+tools/PataponAudit/reports/
+outputs/
+work/
