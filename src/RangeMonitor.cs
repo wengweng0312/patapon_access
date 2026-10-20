@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
@@ -9,7 +9,7 @@ internal static class RangeMonitor
     private static bool enabled,missionActive;
     private static long nextSample,nextHeartbeat,samples,errors,lastError;
     private static string last="";
-    public static string CurrentStatus {get;private set;}="目前沒有可用的射程資料";
+    public static string CurrentStatus {get;private set;}=I18n.T("ui.ca39bb204b65","目前沒有可用的射程資料");
     public static void Install(bool logging,bool cue)
     {
         enabled=logging||cue;RangeCue.Enabled=cue;
@@ -35,9 +35,9 @@ internal static class RangeMonitor
     }
     public static void Begin()
     {
-        EnemyRangeGeometry.Begin();DirectEnemySight.Begin();CartRange.Begin();CurrentStatus="正在讀取射程";missionActive=true;nextSample=nextHeartbeat=0;samples=errors=0;last="";RangeCue.Reset();
+        EnemyRangeGeometry.Begin();DirectEnemySight.Begin();CartRange.Begin();CurrentStatus=I18n.T("ui.82af2da4b341","正在讀取射程");missionActive=true;nextSample=nextHeartbeat=0;samples=errors=0;last="";RangeCue.Reset();
     }
-    public static void End(){EnemyRangeGeometry.End();DirectEnemySight.End();CartRange.End();CurrentStatus="目前不在戰鬥中";missionActive=false;RangeCue.Reset();}
+    public static void End(){EnemyRangeGeometry.End();DirectEnemySight.End();CartRange.End();CurrentStatus=I18n.T("ui.02e9ab48a558","目前不在戰鬥中");missionActive=false;RangeCue.Reset();}
     private static long nativeCountCalls;
     private static void CountObserved(MethodBase __originalMethod,int __result)
     {
@@ -54,8 +54,8 @@ internal static class RangeMonitor
             if(le<0||le>4||se<0||se>4||lg<0||lg>4||sg<0||sg>4)throw new InvalidOperationException("P2 sight counts outside 0..4");
             string key=$"P2:{le}:{se}:{lg}:{sg}";
             if(key!=last||now>=nextHeartbeat){Monitor.Record("range-state",new{game="P2",longEnemySquads=le,shortEnemySquads=se,longGimmickSquads=lg,shortGimmickSquads=sg});last=key;nextHeartbeat=now+1000;}
-            CurrentStatus=(le>0?"敵方部隊在攻擊範圍內":"沒有偵測到射程內敵方部隊")+"。"+
-                (lg>0?"可攻擊場景物件在攻擊範圍內":"沒有偵測到射程內可攻擊場景物件")+"。射程資訊不代表必定命中。";
+            CurrentStatus=(le>0?I18n.T("ui.8e7a3d018df4","敵方部隊在攻擊範圍內"):I18n.T("ui.1f24ed275b02","沒有偵測到射程內敵方部隊"))+"。"+
+                (lg>0?I18n.T("ui.4b617d8be750","可攻擊場景物件在攻擊範圍內"):I18n.T("ui.8e4ed584bb65","沒有偵測到射程內可攻擊場景物件"))+I18n.T("ui.5c091b7a3aa3","。射程資訊不代表必定命中。");
             RangeCue.Observe(P2RangeTargets.Inside(le,lg),le,se,"P2LongEnemyOrGimmick");
         }catch(Exception e){if(now-lastError>10000){lastError=now;Monitor.Record("range-error",new{game="P2",error=e.Message});}}
     }
@@ -74,7 +74,7 @@ internal static class RangeMonitor
                 last=key;nextHeartbeat=now+1000;
             }
             bool direct=DirectEnemySight.Inside(now)||EnemyRangeGeometry.Inside(now);
-            CurrentStatus=(le>0||direct?"敵方部隊在攻擊範圍內":"沒有偵測到射程內敵方部隊")+"。"+(lg>0?"場景物件也在攻擊範圍內":"沒有偵測到射程內場景物件")+"。這是一般目標資訊；馬車另以三聲鐘音提示。";
+            CurrentStatus=(le>0||direct?I18n.T("ui.8e7a3d018df4","敵方部隊在攻擊範圍內"):I18n.T("ui.1f24ed275b02","沒有偵測到射程內敵方部隊"))+"。"+(lg>0?I18n.T("ui.ed159f698689","場景物件也在攻擊範圍內"):I18n.T("ui.4404f5611309","沒有偵測到射程內場景物件"))+I18n.T("ui.722cca490e4d","。這是一般目標資訊；馬車另以三聲鐘音提示。");
             RangeCue.Observe(le>0||direct,le,se);
         }catch(Exception e){errors++;if(now-lastError>10000){lastError=now;Monitor.Record("range-error",new{error=e.ToString(),samples,errors});}}
     }

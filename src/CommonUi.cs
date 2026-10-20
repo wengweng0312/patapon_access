@@ -14,9 +14,10 @@ internal static class CommonUi
     private static long commandWindowSeen;
     public static bool CommandWindowActive=>Environment.TickCount64-commandWindowSeen<350;
     private static float next;
-    private static string lastDialog="",repeatText="";
+    private static string repeatText="";
+    private static readonly CommandDialogSpeech dialogSpeech=new();
+    private static bool pendingDialog;
     public static string RepeatText=>Environment.TickCount64-focusSeen<800?repeatText:"";
-    private static readonly HashSet<string> choices=new(StringComparer.OrdinalIgnoreCase){"是","否","確定","取消","はい","いいえ","Yes","No","OK","Cancel"};
     public static void Install()
     {
         var h=new Harmony("org.patapon.access.commonui");
@@ -31,16 +32,38 @@ internal static class CommonUi
     }
     private static object? Get(object o,string name)=>o.GetType().GetProperty(name)?.GetValue(o);
     private static object? Call(object o,string name,params object[] args)=>o.GetType().GetMethod(name)?.Invoke(o,args);
+    private static string lastResolved="",templateOwner="";
+    private static readonly Dictionary<string,string> templates=new();
+    private static bool unresolvedVariables,pendingVariables;
     private static string Chars(object? array)
     {
         if(array is Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<char> chars)
-            return DialogueText.Clean(new string(chars.ToArray()).Split('\0')[0]);
+            return ResolveVariables(new string(chars.ToArray()).Split('\0')[0]);
         return "";
+    }
+    private static string ResolveVariables(string raw)
+    {
+        string? template=DialogueText.HasVariableToken(raw)?raw:templates.GetValueOrDefault(raw)??VariableTemplates.Find(raw,Environment.TickCount64);
+        if(template!=null){if(templates.Count>=64)templates.Clear();templates[raw]=template;raw=template;}
+        if(DialogueText.HasVariableToken(raw))foreach(var text in UnityEngine.Object.FindObjectsOfType<TMP_Text>()) {
+            if(!text||!text.isActiveAndEnabled||text.color.a<0.05f||text.maxVisibleCharacters==0)continue;
+            if(!text.name.StartsWith("DrumSysmteText_",StringComparison.Ordinal)&&!text.name.StartsWith("DrumNormalText_",StringComparison.Ordinal))continue;
+            string resolved=DialogueText.ResolveTemplate(raw,text.text);
+            if(resolved.Length==0)continue;
+            string signature=raw+"|"+resolved;
+            if(lastResolved!=signature){lastResolved=signature;Monitor.Record("common-variable-resolved",new{template=raw,text=resolved,path=Monitor.PathOf(text.transform)});}
+            return resolved;
+        }
+        if(DialogueText.HasVariableToken(raw))unresolvedVariables=true;
+        return DialogueText.Clean(raw);
     }
     private static void ObserveWindow(object __instance)
     {
         try {
             if(Call(__instance,"isForcus") is not true || Call(__instance,"isRunning") is not true) return;
+            string variableOwner=__instance.GetType().FullName+":"+((Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase)__instance).Pointer;
+            if(templateOwner!=variableOwner||Environment.TickCount64-commandWindowSeen>500){templates.Clear();templateOwner=variableOwner;}
+            unresolvedVariables=false;
             long priorWindowSeen=commandWindowSeen;
             commandWindowSeen=Environment.TickCount64;
             int index=Convert.ToInt32(Call(__instance,"getCursorPos"));
@@ -52,22 +75,24 @@ internal static class CommonUi
             string help=Chars(Get(item,"help"));
             string title=Chars(Call(__instance,"getName"));
             string ns=__instance.GetType().Namespace?.Split('.')[0]??"";
-            if(ns is "P2" or "P2S" && P2EvolutionAccess.ObserveWindow(title,label)){commandWindowSeen=priorWindowSeen;return;}
+            if(ns is "P2" or "P2S" && P2EvolutionAccess.ObserveWindow(title,label,((Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase)__instance).Pointer)){commandWindowSeen=priorWindowSeen;return;}
             string body="";
             var optionIndices=new List<int>();
-            if(title.Equals("Information",StringComparison.OrdinalIgnoreCase)) {
+            var commandLabels=new List<string>();
+            {
                 var content=new List<string>();
                 int count=Math.Min(64,Convert.ToInt32(Get(commands,"Count")));
                 for(int j=0;j<count;j++) {
                     var other=Call(commands,"get_Item",j);
                     if(other==null) continue;
                     string value=Chars(Get(other,"name"));
-                    if(choices.Contains(value)) optionIndices.Add(j);
+                    commandLabels.Add(value);
+                    if(CommandDialogSpeech.IsChoice(value)) optionIndices.Add(j);
                     else if(value.Length>0 && value!=title && value!="%") content.Add(value);
                 }
                 body=string.Join("。",content.Distinct());
             }
-            if(title=="英雄的記憶") title="生命之樹，英雄的記憶";
+            if(title=="英雄的記憶") title=I18n.T("ui.20c967cdc8ef","生命之樹，英雄的記憶");
             if(label=="%" && help.StartsWith("unit")) {
                 string? unitName=UnitNames.Resolve(__instance.GetType().Namespace?.Split('.')[0]??"P1",help);
                 if(unitName!=null) {label=unitName;help="";}
@@ -75,16 +100,23 @@ internal static class CommonUi
             string text=string.Join("，",new[]{title,label,help}.Where(s=>s.Length>0).Distinct());
             if(label.Length==0) return;
             long now=Environment.TickCount64;
-            string ordinal=optionIndices.Contains(index)?$"，第 {optionIndices.IndexOf(index)+1} 項，共 {optionIndices.Count} 項":"，第 "+(index+1)+" 項";
-            string dialogKey=title+"|"+body;
-            repeatText=string.Join("，",new[]{title,body,label,help}.Where(s=>s.Length>0).Distinct())+ordinal;
-            string focusKey=text+"|"+body;
-            if(focusKey!=lastFocus || now-focusSeen>1500) {
-                bool firstDialog=body.Length>0 && (dialogKey!=lastDialog || now-focusSeen>1500);
-                lastFocus=focusKey;pending=firstDialog?repeatText:text+ordinal;readyAt=now+140;
-                lastDialog=dialogKey;
-                Monitor.Record("common-selection",new{type=__instance.GetType().FullName,index,title,body,label,help});
+            string ordinal=optionIndices.Contains(index)?I18n.T("ui.33ca23bae65d","，第 {0} 項，共 {1} 項",optionIndices.IndexOf(index)+1,optionIndices.Count):I18n.T("ui.fab2a038b6d0","，第 ")+(index+1)+I18n.T("ui.06189562e746"," 項");
+            string owner=__instance.GetType().FullName+":"+((Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase)__instance).Pointer;
+            bool confirmation=optionIndices.Contains(index);
+            bool isDialog=title.Equals("Information",StringComparison.OrdinalIgnoreCase)||confirmation;
+            bool entered=false;
+            if(isDialog) {
+                string prompt=confirmation?string.Join("。",new[]{body,help}.Where(s=>s.Length>0).Distinct()):body;
+                string selected=confirmation?label:string.Join("，",new[]{label,help}.Where(s=>s.Length>0).Distinct())+ordinal;
+                entered=dialogSpeech.Observe(owner,title,prompt,selected,string.Join("|",commandLabels),now);
+                repeatText=dialogSpeech.Repeat;
+            }else {dialogSpeech.Reset();repeatText=text+ordinal;}
+            string focusKey=owner+"|"+text+"|"+body;
+            if(focusKey!=lastFocus || now-focusSeen>1500 || entered) {
+                lastFocus=focusKey;pending=repeatText;pendingDialog=isDialog;readyAt=now+140;
+                Monitor.Record("common-selection",new{type=__instance.GetType().FullName,index,title,body,label,help,isDialog,confirmation});
             }
+            pendingVariables=unresolvedVariables;
             focusSeen=now;
         } catch(Exception e) {
             if(Environment.TickCount64-focusSeen>5000) {focusSeen=Environment.TickCount64;Reader.Log.LogWarning("Common selection observation: "+e.Message);}
@@ -121,24 +153,26 @@ internal static class CommonUi
         if(signature!=stable && now-changedAt>=180) {
             stable=signature;
             if(candidateText.Length>0) {
-                pending=candidateText;readyAt=now+50;
+                pending=candidateText;pendingDialog=false;pendingVariables=false;readyAt=now+50;
                 Monitor.Record("common-visible-text",new{text=candidateText,selectionKnown=hasWindow});
             }
         }
     }
+    private static bool selectedInterrupt=true;
+    public static bool TakenInterrupt {get;private set;}=true;
     public static string Take()
     {
         if(selectedPending.Length>0) {
             if(Environment.TickCount64<selectedReadyAt)return "";
-            string selected=selectedPending;selectedPending="";pending="";
+            string selected=selectedPending;TakenInterrupt=selectedInterrupt;selectedPending="";pending="";pendingDialog=false;
             stable=candidate;
             Monitor.Record("selection-speech-ready",new{text=selected});
             return selected;
         }
-        if(Environment.TickCount64<readyAt) return "";
-        string text=pending;pending="";return text;
+        if(Environment.TickCount64<readyAt||pendingVariables&&Environment.TickCount64-readyAt<350) return "";
+        string text=pendingDialog&&pending.Length>0?dialogSpeech.Take():pending;TakenInterrupt=true;pending="";pendingDialog=false;return text;
     }
-    public static void Clear() {pending="";selectedPending="";stable=candidate;}
-    public static void QueueSelection(string text) {selectedPending=text;repeatText=text;focusSeen=Environment.TickCount64;selectedReadyAt=focusSeen+120;}
+    public static void Clear() {pendingVariables=false;pending="";selectedPending="";pendingDialog=false;dialogSpeech.Reset();stable=candidate;}
+    public static void QueueSelection(string text,bool interrupt=true) {selectedInterrupt=interrupt;selectedPending=text;repeatText=text;focusSeen=Environment.TickCount64;selectedReadyAt=focusSeen+120;}
 }
 

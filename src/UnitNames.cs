@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using System.Reflection;
 
 namespace PataponAccess;
@@ -24,6 +24,7 @@ internal static class UnitNames
     private static void Localize(object __instance,MethodBase __originalMethod,object[] __args,string __result)
     {
         if(string.IsNullOrWhiteSpace(__result) || __args.Length==0) return;
+        VariableTemplates.Observe(__result,Environment.TickCount64);
         string ns=__originalMethod.DeclaringType!.Namespace!.Split('.')[0];
         managers[ns]=__instance;
         uint id=__args.Length>=2?LocalizeIds.Pack(Convert.ToUInt32(__args[0]),Convert.ToUInt32(__args[1])):Convert.ToUInt32(__args[0]);

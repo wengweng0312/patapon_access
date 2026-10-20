@@ -12,7 +12,7 @@ internal static class BattleChants
     public static bool Enabled=>setting?.Value??false;
     public static string Source=>flagDepth>0?"flag-unit":playerDepth>0?"player-unit":"unclassified";
     public static void Configure(ConfigEntry<bool> value){setting=value;}
-    public static string Toggle(){if(setting!=null)setting.Value=!setting.Value;return Enabled?"已開啟戰鬥口號朗讀":"已關閉戰鬥口號朗讀";}
+    public static string Toggle(){if(setting!=null)setting.Value=!setting.Value;return Enabled?I18n.T("ui.e6e68a82079a","已開啟戰鬥口號朗讀"):I18n.T("ui.4c9fe0c4df87","已關閉戰鬥口號朗讀");}
     public static void Install(Harmony h)
     {
         foreach(string ns in new[]{"P1","P2"})try {

@@ -76,14 +76,14 @@ internal static class HeroSongVolume
     public static void Preview()
     {
         try{
-            if(P2.LaboCommon.pLaboCommonInstance_g==null){Speech.Speak("請先進入二代，再試聽英雄模式歌聲。");return;}
+            if(P2.LaboCommon.pLaboCommonInstance_g==null){Speech.Speak(I18n.T("ui.89b093c0d560","請先進入二代，再試聽英雄模式歌聲。"));return;}
             var orchestra=P2.LaboCommon.getApplication()?.orchestra_;
-            if(orchestra==null||orchestra.seMixer_==null){Speech.Speak("二代音效系統尚未準備好。");return;}
+            if(orchestra==null||orchestra.seMixer_==null){Speech.Speak(I18n.T("ui.f7b9b8cd785e","二代音效系統尚未準備好。"));return;}
             // Use exactly the game's request, mixer, bank program, note transposition,
             // envelope and category. Raw ACB playback changes pitch/rate and is forbidden here.
             uint seIndex=HeroSongRules.PreviewSeIndex(previewIndex++);
             orchestra.playSEIndex(seIndex,1f,CriSoundManager.MixingCategory.MixingCategory_Hero,0f);
             Monitor.Record("hero-song-preview",new{seIndex,route="native-Orchestra.playSEIndex",level=Level});
-        }catch(Exception e){Error(e);Speech.Speak("目前無法試聽英雄模式歌聲。");}
+        }catch(Exception e){Error(e);Speech.Speak(I18n.T("ui.2e7cbe3dcb68","目前無法試聽英雄模式歌聲。"));}
     }
 }

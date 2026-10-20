@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using TMPro;
@@ -21,7 +21,7 @@ internal static class RewardAccess
     private static bool collecting;
     public static string RepeatText=>IsResultActive ? Summary : miniRepeat;
     public static bool IsResultActive=>Environment.TickCount64-lastResultSeen<500;
-    private static string Summary=>inventorySummary.Length>0?inventorySummary:"戰鬥結算，獲得物品："+(order.Count>0?string.Join("、",order):"正在讀取戰利品");
+    private static string Summary=>inventorySummary.Length>0?inventorySummary:I18n.T("ui.aac9c0e4dc1b","戰鬥結算，獲得物品：")+(order.Count>0?string.Join("、",order):I18n.T("ui.067fa1026fae","正在讀取戰利品"));
     public static void BeginMission(){battleGains.Clear();battleEnded=false;inventoryResultUsed=false;inventorySummary="";battleChangedAt=Environment.TickCount64;}
     public static void EndMission(){battleEnded=true;battleChangedAt=Environment.TickCount64;}
     private static void BattleGain(string game,int id,uint nameId,int count)
@@ -80,10 +80,10 @@ internal static class RewardAccess
                 var key=entry.Key;var gain=entry.Value;
                 string? name=UnitNames.FetchLocalized(key.game,gain.nameId);
                 if(name==null){waiting=true;continue;}
-                rewards.Add(name+"，"+gain.count+" 個");entries.Add(new{game=key.game,itemId=key.id,name,count=gain.count});
+                rewards.Add(name+"，"+gain.count+I18n.T("ui.c61cc5c219ba"," 個"));entries.Add(new{game=key.game,itemId=key.id,name,count=gain.count});
             }
             if(!waiting||now-battleChangedAt>=5000){
-                if(rewards.Count>0){inventorySummary=battleText="戰鬥結算，獲得物品："+string.Join("；",rewards);Monitor.Record("inventory-result-reward-speech",new{items=entries.ToArray(),countsKnown=true,unresolved=battleGains.Count-rewards.Count});}
+                if(rewards.Count>0){inventorySummary=battleText=I18n.T("ui.aac9c0e4dc1b","戰鬥結算，獲得物品：")+string.Join("；",rewards);Monitor.Record("inventory-result-reward-speech",new{items=entries.ToArray(),countsKnown=true,unresolved=battleGains.Count-rewards.Count});}
                 battleGains.Clear();battleEnded=false;
             }
         }
@@ -103,10 +103,10 @@ internal static class RewardAccess
             // Native grants arrive as the result closes. Visible labels alone can
             // contain enemy names and cannot reliably pair names with quantities.
             if(!BattleMonitor.Active&&!battleEnded&&!inventoryResultUsed&&order.Count>0 && now-changedAt>=1300 && spoken!=Summary && battleGains.Count==0) {
-                spoken=Summary;Speech.Speak(spoken);
+                spoken=Summary;Speech.Speak(spoken,interrupt:false);
                 Monitor.Record("result-reward-speech",new{items=order.ToArray(),countsKnown=false});
             }
-            if(battleText.Length>0){miniRepeat=battleText;CommonUi.QueueSelection(miniRepeat);}
+            if(battleText.Length>0){miniRepeat=battleText;CommonUi.QueueSelection(miniRepeat,interrupt:false);}
             return true;
         }
         var announcements=new List<string>();
@@ -116,10 +116,10 @@ internal static class RewardAccess
             if(name==null && now-gain.at<5000)continue;
             gains.Remove(id);
             if(name==null){Monitor.Record("reward-name-missing",new{itemId=id,gain.nameId,gain.count});continue;}
-            announcements.Add(name+"，"+gain.count+" 個");
+            announcements.Add(name+"，"+gain.count+I18n.T("ui.c61cc5c219ba"," 個"));
             Monitor.Record("minigame-reward-speech",new{game=id.game,itemId=id.id,name,count=gain.count,source="inventory-add-outside-mission"});
         }
-        if(announcements.Count>0||battleText.Length>0) {miniRepeat=string.Join("。",new[]{battleText,announcements.Count>0?"獲得物品，"+string.Join("；",announcements):""}.Where(s=>s.Length>0));CommonUi.QueueSelection(miniRepeat);}
+        if(announcements.Count>0||battleText.Length>0) {miniRepeat=string.Join("。",new[]{battleText,announcements.Count>0?I18n.T("ui.3bdb812d7a8a","獲得物品，")+string.Join("；",announcements):""}.Where(s=>s.Length>0));CommonUi.QueueSelection(miniRepeat,interrupt:false);}
         return false;
     }
 }

@@ -6,7 +6,8 @@ internal static class ContextGuide
     public static void Speak()
     {
         string context=Resolve();
-        string message=ContextGuideText.Describe(context,Key(MultiPlatformInputManager.AllAction.Menu_South,"遊戲確認鍵"),Key(MultiPlatformInputManager.AllAction.Menu_East,"遊戲返回鍵"),Key(MultiPlatformInputManager.AllAction.Menu_SelectLeft,"左鍵"),Key(MultiPlatformInputManager.AllAction.Menu_SelectRight,"右鍵"),Key(MultiPlatformInputManager.AllAction.Menu_West,"遊戲對應功能鍵"));
+        string message=ContextGuideText.Describe(context,Key(MultiPlatformInputManager.AllAction.Menu_South,I18n.T("ui.5df3b328c161","遊戲確認鍵")),Key(MultiPlatformInputManager.AllAction.Menu_East,I18n.T("ui.b66fe4e6d8ec","遊戲返回鍵")),Key(MultiPlatformInputManager.AllAction.Menu_SelectLeft,I18n.T("ui.37ce894c368a","左鍵")),Key(MultiPlatformInputManager.AllAction.Menu_SelectRight,I18n.T("ui.147ec6c37f3b","右鍵")),Key(MultiPlatformInputManager.AllAction.Menu_West,I18n.T("ui.8b06d9180b19","遊戲對應功能鍵")));
+        if(context=="dance")message=DanceCueAccess.Guide();
         if(context=="village")message=ContextGuideText.Village(Key(MultiPlatformInputManager.AllAction.Menu_LeftShoulder,"Q"),Key(MultiPlatformInputManager.AllAction.Menu_RightShoulder,"E"),Key(MultiPlatformInputManager.AllAction.Menu_South,"Enter"),Key(MultiPlatformInputManager.AllAction.Menu_Select,"Tab"));
         string previous=Speech.Last;Speech.Speak(message);Speech.Last=previous;
         Monitor.Record("context-guide",new{context,text=message});
@@ -14,6 +15,8 @@ internal static class ContextGuide
     private static string Resolve()
     {
         if(ModuleHelp.Active)return "help";
+        if(DanceCueAccess.Active)return "dance";
+        if(BalloonChoiceAccess.Active)return "save-confirm";
         if(SettingsPopupAccess.RepeatText.Length>0)return "popup";
         var settings=UnityEngine.Object.FindObjectOfType<SettingMain>();
         if(settings&&settings.gameObject.activeInHierarchy&&!settings.IsClosed())return "settings";

@@ -15,7 +15,7 @@ internal static class BindingNames
         foreach(string candidate in candidates) {
             string found=manager.GetKeyboardSpriteName(action,candidate);
             if(found!=sprite)continue;
-            string name=candidate=="\\"?"反斜線鍵":candidate+" 鍵";
+            string name=candidate=="\\"?I18n.T("ui.dea3a5633154","反斜線鍵"):candidate+I18n.T("ui.ecb536912f61"," 鍵");
             spriteKeys[sprite]=name;return name;
         }
         return "";
@@ -37,11 +37,11 @@ internal static class BindingNames
                 if(b.isComposite || !(path.Contains("Keyboard",StringComparison.OrdinalIgnoreCase)||path.Contains("Mouse",StringComparison.OrdinalIgnoreCase)))continue;
                 string key=path.Substring(path.LastIndexOf('/')+1);
                 string name=key.ToLowerInvariant() switch {
-                    "uparrow"=>"方向鍵上","downarrow"=>"方向鍵下","leftarrow"=>"方向鍵左","rightarrow"=>"方向鍵右",
-                    "backslash"=>"反斜線鍵","slash"=>"斜線鍵","space"=>"空白鍵","enter"=>"Enter 鍵","escape"=>"Escape 鍵",
-                    "tab"=>"Tab 鍵","home"=>"Home 鍵","end"=>"End 鍵","pageup"=>"Page Up 鍵","pagedown"=>"Page Down 鍵",
-                    "leftbutton"=>"滑鼠左鍵","rightbutton"=>"滑鼠右鍵","middlebutton"=>"滑鼠中鍵",
-                    _=>key.Length==1?key.ToUpperInvariant()+" 鍵":key+" 鍵"
+                    "uparrow"=>I18n.T("ui.d5362001fe6b","方向鍵上"),"downarrow"=>I18n.T("ui.5d9e329a58e2","方向鍵下"),"leftarrow"=>I18n.T("ui.6484e7c7dc02","方向鍵左"),"rightarrow"=>I18n.T("ui.3e1aac5cdc1a","方向鍵右"),
+                    "backslash"=>I18n.T("ui.dea3a5633154","反斜線鍵"),"slash"=>I18n.T("ui.abc3ad2eb12e","斜線鍵"),"space"=>I18n.T("ui.6fa9351208e3","空白鍵"),"enter"=>I18n.T("ui.e9790d6135a3","Enter 鍵"),"escape"=>I18n.T("ui.42600694dad8","Escape 鍵"),
+                    "tab"=>I18n.T("ui.80a7f88e8347","Tab 鍵"),"home"=>I18n.T("ui.3aead55ef8b6","Home 鍵"),"end"=>I18n.T("ui.1a4a016b0816","End 鍵"),"pageup"=>I18n.T("ui.0bb384d6a26c","Page Up 鍵"),"pagedown"=>I18n.T("ui.692d0e2d045f","Page Down 鍵"),
+                    "leftbutton"=>I18n.T("ui.e9f502636cfa","滑鼠左鍵"),"rightbutton"=>I18n.T("ui.dad0f65629a9","滑鼠右鍵"),"middlebutton"=>I18n.T("ui.0e8654b5022a","滑鼠中鍵"),
+                    _=>key.Length==1?key.ToUpperInvariant()+I18n.T("ui.ecb536912f61"," 鍵"):key+I18n.T("ui.ecb536912f61"," 鍵")
                 };
                 result.Add(name);
             }

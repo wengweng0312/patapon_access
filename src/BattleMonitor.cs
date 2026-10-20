@@ -55,7 +55,7 @@ internal static class BattleMonitor
     private static void GimmickCollision(){gimmickCollisions++;}
     private static void WeatherChange(uint __0,float __1,P1.Game.Map.Weather.ParamId __2)
         =>Monitor.Record("weather-request",new{weatherId=__0,transitionSeconds=float.IsFinite(__1)?(float?)__1:null,source=__2.ToString(),note="Requested weather only; actual wind and rain not read."});
-    private static void MissionStart(MethodBase __originalMethod){MiracleAccess.Clear();Active=true;Mission++;RangeMonitor.Begin();RewardAccess.BeginMission();CannonWarning.BeginMission();SceneMechanismLogger.BeginMission();lastPossible=null;Monitor.Record("mission-start",new{mission=Mission,game=__originalMethod.DeclaringType!.Namespace!.Split('.')[0]});}
+    private static void MissionStart(MethodBase __originalMethod){MiracleAccess.Clear();Active=true;Mission++;NativeDialogueRoles.Begin(__originalMethod.DeclaringType!.Namespace!.Split('.')[0]);RangeMonitor.Begin();RewardAccess.BeginMission();CannonWarning.BeginMission();SceneMechanismLogger.BeginMission();lastPossible=null;Monitor.Record("mission-start",new{mission=Mission,game=__originalMethod.DeclaringType!.Namespace!.Split('.')[0]});}
     private static void MissionEnd(){CampHintAccess.NewVisit();MiracleAccess.Clear();Active=false;RangeMonitor.End();RewardAccess.EndMission();Monitor.Record("mission-end",new{mission=Mission});}
     public static void Health()
     {

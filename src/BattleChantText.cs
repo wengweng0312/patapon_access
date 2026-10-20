@@ -19,7 +19,15 @@ internal static class BattleChantText
         "現在的攻擊很強烈 要防禦才行唷～","守住！！ 說不定很危險…",
         "CHAKA CHAKA 撐著點！","快逃！ 快逃！ 快逃～！！"
     };
-    public static bool IsChant(string text)=>chants.Contains(text);
+    private static readonly HashSet<string> localizedChants=new(StringComparer.Ordinal);
+    private static readonly HashSet<string> localizedTactical=new(StringComparer.Ordinal);
+    public static void RegisterNative(IEnumerable<string> commandLines,IEnumerable<string> tacticalLines)
+    {
+        localizedChants.Clear();localizedTactical.Clear();
+        foreach(var text in commandLines)if(!string.IsNullOrWhiteSpace(text))localizedChants.Add(text);
+        foreach(var text in tacticalLines)if(!string.IsNullOrWhiteSpace(text))localizedTactical.Add(text);
+    }
+    public static bool IsChant(string text)=>chants.Contains(text)||localizedChants.Contains(text);
     public static bool ShouldSuppress(bool enabled,bool battle,bool flagUnitSource,string text)
-        =>!enabled&&battle&&flagUnitSource&&!tactical.Contains(text)&&chants.Contains(text);
+        =>!enabled&&battle&&flagUnitSource&&!tactical.Contains(text)&&!localizedTactical.Contains(text)&&IsChant(text);
 }

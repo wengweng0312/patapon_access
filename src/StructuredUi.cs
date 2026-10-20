@@ -58,7 +58,7 @@ internal static class StructuredUi
             if((Call(__instance,"isActive") is not true&&Get(__instance,"isActiveStatusDisplay_") is not true)||ItemAndPlaceAccess.EquipmentActive)return;
             // An active native status page owns its readout even while resources
             // are loading. Never fall back to a soup of pooled background text.
-            squadKind="squad";squad="部隊狀態，資料尚未取得";
+            squadKind="squad";squad=I18n.T("ui.5ea850d4e5f5","部隊狀態，資料尚未取得");
             squadSeen=Environment.TickCount64;
             int index=Convert.ToInt32(Get(__instance,"selectIndex_"));var indices=Get(__instance,"paramIndexArray_");int total=indices==null?0:Convert.ToInt32(Get(indices,"Count"));
             if(index<0||index>=total)return;

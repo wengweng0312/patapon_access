@@ -20,3 +20,14 @@ The release installer also bundles third-party loader/runtime dependencies such 
 BepInEx and .NET. They remain governed by their respective upstream licenses.
 Unity dependencies and generated game interoperability bindings are not covered by
 this project's MIT license. The game itself is not included.
+
+## Tolk distribution
+
+This package includes the user-supplied extended Tolk x64 Release build, unchanged,
+and its vendor client modules under BepInEx/plugins/PataponAccess/Tolk.
+Tolk retains LGPLv3; the included NVDA client retains its separate LGPL license.
+License texts and the supplied documentation are preserved in that directory.
+Vendor client modules retain their respective terms; this project's MIT license does not relicense them.
+Original Tolk project: https://github.com/dkager/tolk
+The exact source revision of this extended supplied build has not been identified;
+the original-project URL is not a claim that these binaries match its current build.

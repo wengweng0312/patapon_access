@@ -11,7 +11,7 @@ internal static class NameInputAccess
     private static string observed="", spoken="";
     private static long changedAt;
     public static bool IsActive=>active;
-    public static string RepeatText=>"名稱輸入，目前內容："+(observed.Length==0?"空白":observed);
+    public static string RepeatText=>I18n.T("ui.4d8eec03902b","名稱輸入，目前內容：")+(observed.Length==0?I18n.T("ui.f0bf4574ce25","空白"):observed);
     public static void Install()
     {
         try {
@@ -36,7 +36,7 @@ internal static class NameInputAccess
             string value=field!.text??"";
             if(!active) {
                 active=true;observed=spoken=value;changedAt=Environment.TickCount64;
-                Speech.Speak("請輸入神明的名稱。"+RepeatText+"。可使用文字輸入與退格鍵，F3 重讀目前內容。輸入完成後使用遊戲原本的確認鍵。");
+                Speech.Speak(I18n.T("ui.282a7a5666c4","請輸入神明的名稱。")+RepeatText+I18n.T("ui.a725148dc03c","。可使用文字輸入與退格鍵，F3 重讀目前內容。輸入完成後使用遊戲原本的確認鍵。"));
                 Monitor.Record("name-input-opened",new{length=value.Length,limit=field.characterLimit});
             }
             if(value!=observed) {observed=value;changedAt=Environment.TickCount64;}

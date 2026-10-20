@@ -25,8 +25,8 @@ internal static class P2TreasureAccess
             var box=boxes[index];if(box==null)return;
             uint cost=box.getCoinCount(),available=window!.getCoinCount();bool closed=box.isClose();
             // Do not expose hidden contents of unopened boxes.
-            string contents=closed?"尚未開啟":"已開啟，"+box.getItemName()+"，"+box.getItemCount()+" 個";
-            current=$"寶箱選擇，第 {index+1} 個，共 {boxes.Count} 個。{contents}。需要啪啦加利 {cost}，可使用 {available}。";
+            string contents=closed?I18n.T("ui.5011481529bc","尚未開啟"):I18n.T("ui.450857204c77","已開啟，")+box.getItemName()+"，"+box.getItemCount()+I18n.T("ui.c61cc5c219ba"," 個");
+            current=I18n.T("ui.bb7f6e3a7a4c","寶箱選擇，第 {0} 個，共 {1} 個。{2}。需要啪啦加利 {3}，可使用 {4}。",index+1,boxes.Count,contents,cost,available);
             if(current==previous)return;previous=current;
             CommonUi.QueueSelection(current);
             Monitor.Record("p2-treasure-selection",new{index,total=boxes.Count,cost,available,closed,text=current});

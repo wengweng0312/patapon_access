@@ -7,8 +7,8 @@ internal static class DrumPuzzleAccess
     private static ConfigEntry<bool>? keys;
     private static readonly DrumPuzzleState state=new();
     public static void Configure(ConfigEntry<bool> value)=>keys=value;
-    public static string Mode=>keys?.Value==true?"綁定按鍵":"鼓聲名稱";
-    public static string Toggle(){if(keys!=null)keys.Value=!keys.Value;return "機關鼓點報讀："+Mode;}
+    public static string Mode=>keys?.Value==true?I18n.T("ui.cd89e50cc353","綁定按鍵"):I18n.T("ui.278b93b27c5f","鼓聲名稱");
+    public static string Toggle(){if(keys!=null)keys.Value=!keys.Value;return I18n.T("ui.b87d9c50189d","機關鼓點報讀：")+Mode;}
     private static long nextPlayerSample,lastError,nextProximityLog;
     public static void Install()
     {
@@ -59,6 +59,6 @@ internal static class DrumPuzzleAccess
         string file=Path.Combine(Path.GetDirectoryName(typeof(Plugin).Assembly.Location)!,"mechanism-near.wav");
         bool success=CueAudio.Play(file);
         Monitor.Record("drum-puzzle-near",new{game,distance=state.Distance,flagDistance=state.FlagDistance,positionSource=game=="P1"?"native-getUnitTop":"native-troop-top-cache",dismissDistance=DrumPuzzleState.DismissDistance,threshold=DrumPuzzleState.ApproachDistance,success,experimental=true});
-        string text=Format(sequence);Monitor.Record("drum-puzzle-speech",new{game,sequence,text,mode=Mode});Speech.Speak(text);
+        string text=Format(sequence);Monitor.Record("drum-puzzle-speech",new{game,sequence,text,mode=Mode});Speech.Speak(text,interrupt:false);
     }
 }

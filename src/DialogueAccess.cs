@@ -25,6 +25,7 @@ internal static class DialogueAccess
     {
         var h=new Harmony("org.patapon.access.dialogue");
         AmbientDialogue.Install(h);
+        BalloonChoiceAccess.Install(h);
         BattleChants.Install(h);
         foreach(string ns in new[]{"P1","P2","P1S","P2S"})
         foreach(string suffix in new[]{".Game.Window.Message",".GameSystem.MessageWindow"}) {
@@ -36,12 +37,13 @@ internal static class DialogueAccess
             }
         }
     }
-    private static void Observe(MethodBase __originalMethod,object[] __args)
+    private static void Observe(object __instance,MethodBase __originalMethod,object[] __args)
     {
         try {
             Monitor.Record("game-event",new{method=__originalMethod.DeclaringType+"."+__originalMethod.Name,args=__args.Select(a=>a?.ToString()??"null").ToArray()});
             var parameters=__originalMethod.GetParameters();
             for(int i=0;i<parameters.Length;i++) if(parameters[i].ParameterType==typeof(string) && __args[i] is string raw) {
+                BalloonChoiceAccess.Offer(__instance,raw);
                 AttackCue.Observe(raw); // Audio preference never suppresses the original dialogue.
                 string text=DialogueText.Clean(raw);
                 if(text.Length==0) continue;
@@ -91,7 +93,7 @@ internal static class DialogueAccess
                 if(pendingTemplate.Length>0&&Environment.TickCount64-previousAt<(DialogueText.HasLevelToken(pendingTemplate)?DialogueText.LevelResolutionTimeoutMs:DialogueText.NameResolutionTimeoutMs)){readyAt=Environment.TickCount64+50;return "";}
                 if(pendingTemplate.Length>0){
                     Monitor.Record("dialogue-template-unresolved",new{text,template=pendingTemplate,reason="rendered-match-not-found-before-timeout"});
-                    if(DialogueText.HasLevelToken(pendingTemplate))text=System.Text.RegularExpressions.Regex.Replace(text,@"Lv\.\s*","等級未取得 ");pendingTemplate="";
+                    if(DialogueText.HasLevelToken(pendingTemplate))text=System.Text.RegularExpressions.Regex.Replace(text,@"Lv\.\s*",I18n.T("ui.16b0234b5343","等級未取得 "));pendingTemplate="";
                 }
             }
             pending="";

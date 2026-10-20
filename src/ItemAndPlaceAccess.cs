@@ -52,7 +52,7 @@ internal static class ItemAndPlaceAccess
             string? explain=UnitNames.Localized(ns,Get(param,"explainId"));
             int count=Convert.ToInt32(Call(items!,"getItemBelongNum",id));
             bool equipped=Convert.ToInt32(Get(__instance,"equipItemId_"))==id;
-            string text="裝備選擇，"+name+"，持有 "+count+" 件"+(equipped?"，目前裝備":"")+(string.IsNullOrWhiteSpace(explain)?"":"。"+explain);
+            string text=I18n.T("ui.24123281fc93","裝備選擇，")+name+I18n.T("ui.39502a5111bf","，持有 ")+count+I18n.T("ui.421f465daee8"," 件")+(equipped?I18n.T("ui.704043172b99","，目前裝備"):"")+(string.IsNullOrWhiteSpace(explain)?"":"。"+explain);
             long now=Environment.TickCount64;
             bool changed=now-equipmentSeen>500 || text!=lastEquipment;
             equipmentSeen=now;
@@ -82,10 +82,10 @@ internal static class ItemAndPlaceAccess
             if(string.IsNullOrWhiteSpace(name)) return;
             CurrentItemName=name;
             var belong=Call(slot,"getBelongItem");
-            string count=belong==null?"":"，持有 "+Get(belong,"num")+" 個";
+            string count=belong==null?"":I18n.T("ui.39502a5111bf","，持有 ")+Get(belong,"num")+I18n.T("ui.c61cc5c219ba"," 個");
             string? explain=UnitNames.Localized(ns,Get(param,"explainId"));
             string type=owner.GetType().Name;
-            string context=type.Contains("Stare")?"倉庫":"道具選擇";
+            string context=type.Contains("Stare")?I18n.T("ui.2113227fb3b5","倉庫"):I18n.T("ui.550259ba7104","道具選擇");
             string text=context+"，"+name+count+(string.IsNullOrEmpty(explain)?"":"。"+explain);
             string key=ns+":"+itemId+":"+text;
             long now=Environment.TickCount64;
@@ -115,9 +115,9 @@ internal static class ItemAndPlaceAccess
             lastPlace=key;
             Monitor.Record("camp-place",new{id,name});
             string lower=name.ToLowerInvariant();
-            if(lower.Contains("lifetree") || lower.Contains("life_tree")) name="生命之樹";
-            else if(lower.Contains("warehouse") || lower.Contains("souko") || lower.Contains("storage")) name="倉庫";
-            CommonUi.QueueSelection("目前選擇，"+name);
+            if(lower.Contains("lifetree") || lower.Contains("life_tree")) name=I18n.T("ui.34a8dff9014a","生命之樹");
+            else if(lower.Contains("warehouse") || lower.Contains("souko") || lower.Contains("storage")) name=I18n.T("ui.2113227fb3b5","倉庫");
+            CommonUi.QueueSelection(I18n.T("ui.023de84af352","目前選擇，")+name);
         } catch(Exception e) {Reader.Log.LogWarning("Camp place: "+e.Message);}
     }
 }

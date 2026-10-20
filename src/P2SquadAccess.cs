@@ -37,13 +37,13 @@ internal static class P2SquadAccess
             uint chara=unchecked((uint)options[index]);
             var names=P2.Bases.Organization.Managed.UnitStatusSlot.charaTypeToCharaNameTable_g;
             string? name=names!=null&&chara<names.Length?UnitNames.FetchLocalized("P2",LocalizeIds.Unit(names[(int)chara])):null;
-            if(string.IsNullOrWhiteSpace(name))name="兵種名稱未取得";
+            if(string.IsNullOrWhiteSpace(name))name=I18n.T("ui.d5ce891d09e6","兵種名稱未取得");
             int missions=model.missionCountList_!=null&&index<model.missionCountList_.Count?(int)model.missionCountList_[index]:0;
             var values=SquadScreenValues.Read();
             // This selector shows missions, not a Reborn counter. Do not invent one.
-            string text=name+"。第 "+(index+1)+" 項，共 "+options.Count+" 項。任務次數 "+missions;
+            string text=name+I18n.T("ui.f92b8a929537","。第 ")+(index+1)+I18n.T("ui.b850d8d5860c"," 項，共 ")+options.Count+I18n.T("ui.a6c180409417"," 項。任務次數 ")+missions;
             for(int i=0;i<values.Length;i++)if(!string.IsNullOrWhiteSpace(values[i]))text+="。"+SquadScreenValues.Labels[i]+" "+values[i];
-            if(values.Any(string.IsNullOrWhiteSpace))text+="。部分能力數值未取得";
+            if(values.Any(string.IsNullOrWhiteSpace))text+=I18n.T("ui.3078a2e6ac92","。部分能力數值未取得");
             StructuredUi.PublishSquad(text);
             string key=chara+":"+index+":"+text;
             if(key!=last){last=key;Monitor.Record("p2-headquarters-squad-selection",new{index,total=options.Count,chara,name,missions,values,source="SquadSelectView.model.slotID/effectiveCharaList/native-name-table"});}
@@ -60,11 +60,11 @@ internal static class P2SquadAccess
             string? name;
             if(squad.isHero_)name=model.getHeroName(model.selectLineIndex_);
             else{var param=squad.getParam();name=param==null?null:UnitNames.FetchLocalized("P2",LocalizeIds.Unit(unchecked((uint)param.charNameId)));}
-            if(string.IsNullOrWhiteSpace(name))name="兵種名稱未取得";
+            if(string.IsNullOrWhiteSpace(name))name=I18n.T("ui.d5ce891d09e6","兵種名稱未取得");
             var values=SquadScreenValues.Read();
-            string text=name+"。任務次數 "+squad.getMissionCount();
+            string text=name+I18n.T("ui.f2c10c6eb978","。任務次數 ")+squad.getMissionCount();
             for(int i=0;i<values.Length;i++)if(!string.IsNullOrWhiteSpace(values[i]))text+="。"+SquadScreenValues.Labels[i]+" "+values[i];
-            if(values.Any(string.IsNullOrWhiteSpace))text+="。部分能力數值未取得";
+            if(values.Any(string.IsNullOrWhiteSpace))text+=I18n.T("ui.3078a2e6ac92","。部分能力數值未取得");
             StructuredUi.PublishSquad(text,"preparation");
             string key="status:"+model.selectLineIndex_+":"+text;
             if(key!=last){last=key;Monitor.Record("p2-headquarters-squad-status",new{name,values,text,source="SquadStatusView.currentSquad"});}

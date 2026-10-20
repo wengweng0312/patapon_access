@@ -8,9 +8,10 @@ internal sealed class EvolutionWindowTracker
     private static readonly Regex level=new(@"\s*Lv\.?\s*(\d+)",RegexOptions.IgnoreCase);
     private static string Name(string title){var m=level.Match(title);return(m.Success?title[..m.Index]:title).Trim();}
     public void InvalidateSelection(){previous="";activeName="";activeAt=0;}
-    public (bool handled,string text) Observe(string title,string body,long now)
+    public (bool handled,string text) Observe(string title,string body,long now,string role="")
     {
-        if(title=="升級條件"){
+        if(role=="confirmation")return(false,"");
+        if(role=="requirements"||(role.Length==0&&title=="升級條件")){
             var m=level.Match(body);if(!m.Success)return(false,"");
             string name=Name(body);activeName=name;
             bool reopened=now-activeAt>1000;activeAt=now;
@@ -18,12 +19,12 @@ internal sealed class EvolutionWindowTracker
             if(descriptions.TryGetValue(name,out var d)&&now-d.at<1000){
                 var current=level.Match(d.title);
                 int lv=current.Success&&int.TryParse(current.Groups[1].Value,out int number)?number:-1;
-                text=EvolutionText.Build(d.title+"。"+d.body,"升級條件。"+body,lv);
-            }else text="進化地圖。升級條件。"+EvolutionText.Requirements(body);
+                text=EvolutionText.Build(d.title+"。"+d.body,I18n.T("ui.cfcacbe62f14","升級條件。")+body,lv);
+            }else text=I18n.T("ui.5f0175f2a38d","進化地圖。升級條件。")+EvolutionText.Requirements(body);
             if(!reopened&&text==previous)return(true,"");
             previous=text;return(true,text);
         }
-        if(title.Length>0&&body.Length>0&&title!="Information"){
+        if(title.Length>0&&body.Length>0&&(role=="description"||role.Length==0&&title!="Information")){
             string name=Name(title);
             if(descriptions.Count>64)descriptions.Clear();
             descriptions[name]=(title,body,now);

@@ -7,5 +7,6 @@
   <Reference Include="0Harmony"><HintPath>$(GameDir)/BepInEx/core/0Harmony.dll</HintPath><Private>false</Private></Reference>
   <Reference Include="$(GameDir)/BepInEx/interop/*.dll"><Private>false</Private></Reference>
  </ItemGroup>
+ <ItemGroup><EmbeddedResource Include="locales/*.json" /></ItemGroup>
 </Project>
 

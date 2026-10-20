@@ -44,7 +44,7 @@ internal static class P2CampNavigation
     private static void Error(Exception e)
     {if(Environment.TickCount64-lastError>5000){lastError=Environment.TickCount64;Monitor.Record("p2-camp-navigation-error",new{error=e.Message});}}
     private static string Key(MultiPlatformInputManager.AllAction action)
-    {var names=BindingNames.Read(action);return names.Count>0?string.Join("、",names.Distinct()):"畫面所示的對應按鍵";}
+    {var names=BindingNames.Read(action);return names.Count>0?string.Join("、",names.Distinct()):I18n.T("ui.b112a6e60034","畫面所示的對應按鍵");}
     private static int Direction()
     {
         var manager=UnityEngine.Object.FindObjectOfType<MultiPlatformInputManager>();if(!manager)return 0;
@@ -68,7 +68,7 @@ internal static class P2CampNavigation
             var units=map[crc];int index=unchecked((int)row.selectId_);
             if(units==null||index<0||index>=units.Count)return;
             var unit=units[index];if(unit==null)return;
-            string name=UnitNames.FetchLocalized("P2",LocalizeIds.Unit(unchecked((uint)row.messageId_)))??"士兵";
+            string name=UnitNames.FetchLocalized("P2",LocalizeIds.Unit(unchecked((uint)row.messageId_)))??I18n.T("ui.eaa8dd04fd68","士兵");
             bool empty=unit.evolutionClass<0;
             string status=P2NavigationText.Slot(name,index,units.Count,unit.evolutionClass,unit.evolutionClassLevel,row.isEnableSelect_);
             long now=Environment.TickCount64;
@@ -93,7 +93,7 @@ internal static class P2CampNavigation
                 // Class message IDs are not unit-name category IDs. Never probe
                 // an unverified category/index pair in the native localizer.
                 string name=id==null?"":UnitNames.Localized("P2",id.Value)??"";
-                text=string.IsNullOrWhiteSpace(name)?"未解鎖":"未解鎖，"+name;
+                text=string.IsNullOrWhiteSpace(name)?I18n.T("ui.fc7f0f8d88ad","未解鎖"):I18n.T("ui.41e88f9de3dc","未解鎖，")+name;
             }else if(previous&&!moved&&direction!=0)text=P2NavigationText.Blocked(x,y,direction);
             if(text.Length==0)return;
             P2EvolutionAccess.Navigation(text,moved);
@@ -109,8 +109,8 @@ internal static class P2CampNavigation
             string signature=$"{model.Pointer}:{slot}";
             bool changed=entered||signature!=heroKey;heroKey=signature;heroSeen=now;
             if(!changed)return;
-            string text=slot<0?"英雄稀有PON形態，按確認變更":"英雄裝備，第 "+(slot+1)+" 格";
-            if(entered)text+="。切換英雄兵種，按 "+Key(MultiPlatformInputManager.AllAction.Menu_West)+"。兵種會決定英雄模式招式";
+            string text=slot<0?I18n.T("ui.aef0f9d3e32c","英雄稀有PON形態，按確認變更"):I18n.T("ui.9f0096b15e8d","英雄裝備，第 ")+(slot+1)+I18n.T("ui.6d1f8ad23ef0"," 格");
+            if(entered)text+=I18n.T("ui.7a443cf4e299","。切換英雄兵種，按 ")+Key(MultiPlatformInputManager.AllAction.Menu_West)+I18n.T("ui.beba98411b62","。兵種會決定英雄模式招式");
             CommonUi.QueueSelection(text);
             Monitor.Record("p2-hero-navigation",new{slot,state=model.state_.ToString(),text});
         }catch(Exception e){Error(e);}
@@ -126,12 +126,12 @@ internal static class P2CampNavigation
             long now=Environment.TickCount64;bool reopened=now-menuSeen>700;menuSeen=now;
             int index=window.selectIndex_;var ids=window.belongingItemIdArray_;
             if(ids==null)return;
-            if(index<0||index>=ids.Count){ReadMenu("空白位置",index,"managed",reopened,ref menuKey);return;}
-            var desc=ids[index];if(desc==null||desc.itemId<0){ReadMenu("空白位置",index,"managed",reopened,ref menuKey);return;}
-            int id=desc.itemId;var param=menu.itemOperator_?.getItemParam(id);if(param==null){ReadMenu("選項資料未取得",index,"managed",reopened,ref menuKey);return;}
-            string? name=UnitNames.FetchLocalized("P2",unchecked((uint)param.nameId));if(string.IsNullOrWhiteSpace(name)){ReadMenu("選項名稱未取得",index,"managed",reopened,ref menuKey);return;}
+            if(index<0||index>=ids.Count){ReadMenu(I18n.T("ui.fe2add6cf52b","空白位置"),index,"managed",reopened,ref menuKey);return;}
+            var desc=ids[index];if(desc==null||desc.itemId<0){ReadMenu(I18n.T("ui.fe2add6cf52b","空白位置"),index,"managed",reopened,ref menuKey);return;}
+            int id=desc.itemId;var param=menu.itemOperator_?.getItemParam(id);if(param==null){ReadMenu(I18n.T("ui.bc3b7dc141b7","選項資料未取得"),index,"managed",reopened,ref menuKey);return;}
+            string? name=UnitNames.FetchLocalized("P2",unchecked((uint)param.nameId));if(string.IsNullOrWhiteSpace(name)){ReadMenu(I18n.T("ui.ce8bbee8ab33","選項名稱未取得"),index,"managed",reopened,ref menuKey);return;}
             string? explain=UnitNames.FetchLocalized("P2",unchecked((uint)param.explainId));
-            string context=job?"英雄兵種選擇":rare?"稀有PON型態選擇":"裝備選擇";
+            string context=job?I18n.T("ui.523bbd6ffa13","英雄兵種選擇"):rare?I18n.T("ui.beadc2575e12","稀有PON型態選擇"):I18n.T("ui.f23b8e657c9a","裝備選擇");
             int? count=job||rare?null:menu.itemOperator_!.getItemBelongNum(id);
             string text=P2NavigationText.Item(context,name,index,ids.Count,count,window.equipItemId_==id,explain);
             bool changed=text!=menuKey||reopened;
@@ -158,7 +158,7 @@ internal static class P2CampNavigation
             if(!changed)return;
             int total=checked((int)(model.squad_?.numUnit_??0));
             unitRepeat=P2NavigationText.UnitPosition(unchecked((int)model.unitID_),total)+"，"+P2NavigationText.UnitPage(slot,form,param?.evolutionClassLevel??0,entered);
-            if(entered)unitRepeat+="。切換士兵，先退出裝備清單，再按 "+Key(MultiPlatformInputManager.AllAction.Menu_SelectLeft)+" 或 "+Key(MultiPlatformInputManager.AllAction.Menu_SelectRight);
+            if(entered)unitRepeat+=I18n.T("ui.b45472ee746e","。切換士兵，先退出裝備清單，再按 ")+Key(MultiPlatformInputManager.AllAction.Menu_SelectLeft)+I18n.T("ui.60ab743988bb"," 或 ")+Key(MultiPlatformInputManager.AllAction.Menu_SelectRight);
             CommonUi.QueueSelection(unitRepeat);
             Monitor.Record("p2-unit-page-navigation",new{unit=model.unitID_,total,slot,rare,level=param?.evolutionClassLevel,form,text=unitRepeat});
         }catch(Exception e){Error(e);}
@@ -178,14 +178,14 @@ internal static class P2CampNavigation
             var window=menu.itemSelectWindow_;if(window==null||!window.isActive_)return;
             long now=Environment.TickCount64;bool reopened=now-normalMenuSeen>700;normalMenuSeen=now;
             bool rare=menu.currentSelectBehavior_?.TryCast<P2.Bases.Organization.ClassSelectBehavior>()!=null;
-            string context=rare?"稀有PON型態選擇":"裝備選擇";
+            string context=rare?I18n.T("ui.beadc2575e12","稀有PON型態選擇"):I18n.T("ui.f23b8e657c9a","裝備選擇");
             int index=window.selectIndex_;var ids=window.belongingItemIdArray_;
             if(ids==null)return;
-            if(index<0||index>=ids.Count||ids[index]<0){ReadMenu("空白位置",index,context,reopened,ref normalMenuKey);return;}
+            if(index<0||index>=ids.Count||ids[index]<0){ReadMenu(I18n.T("ui.fe2add6cf52b","空白位置"),index,context,reopened,ref normalMenuKey);return;}
             int id=ids[index];var items=menu.itemOperator_;var param=items?.getItemParam(id);
-            if(param==null){ReadMenu("選項資料未取得",index,context,reopened,ref normalMenuKey);return;}
+            if(param==null){ReadMenu(I18n.T("ui.bc3b7dc141b7","選項資料未取得"),index,context,reopened,ref normalMenuKey);return;}
             string? name=UnitNames.FetchLocalized("P2",unchecked((uint)param.nameId));
-            if(string.IsNullOrWhiteSpace(name)){ReadMenu("選項名稱未取得",index,context,reopened,ref normalMenuKey);return;}
+            if(string.IsNullOrWhiteSpace(name)){ReadMenu(I18n.T("ui.ce8bbee8ab33","選項名稱未取得"),index,context,reopened,ref normalMenuKey);return;}
             string? explain=UnitNames.FetchLocalized("P2",unchecked((uint)param.explainId));
             int? count=rare?null:items!.getItemBelongNum(id);
             string text=P2NavigationText.Item(context,name,index,ids.Count,count,window.equipItemId_==id,explain);

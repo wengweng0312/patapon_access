@@ -14,14 +14,16 @@ namespace PataponAccess;
 [BepInPlugin("org.patapon.access.start", "Patapon Start Screen Access", Plugin.ModVersion)]
 public class Plugin : BasePlugin
 {
-    public const string ModVersion="0.6.58";
+    public const string ModVersion="0.6.67";
     private Reader? reader;
     public override void Load()
     {
         Reader.Log = Log;
+        I18nRuntime.Initialize(Config,BepInEx.Paths.GameRootPath);
         CueAudio.Initialize(Config);
+        DanceCueAccess.Initialize(Config);
         var native = Path.Combine(Path.GetDirectoryName(GetType().Assembly.Location)!, "nvdaControllerClient64.dll");
-        Speech.Initialize(native);
+        Speech.Initialize(native,Config.Bind("Speech","UseTolk",true,"Use Tolk to detect supported screen readers; direct NVDA remains the fallback.").Value,Config.Bind("Speech","WindowsVoiceFallback",false,"Allow Tolk OneCore/SAPI voices if no screen reader is available.").Value);
         AttackCue.Initialize(Config.Bind("Audio", "AttackReadyCue", false, "Play a short sound when visible text says 攻擊預備.").Value);
         DialogueAccess.QuietCampChatter=Config.Bind("Speech", "QuietCampChatter", true, "Silence automatic villager idle/stroll speech; preserve appeal messages and other dialogue. Also deduplicate seven known P1 chatter lines for two minutes.").Value;
         BattleChants.Configure(Config.Bind("Speech","ReadBattleChants",false,"Read confirmed repeating player march/attack chants. Story, NPC dialogue and tactical warnings remain readable. Toggle in F1 help."));
@@ -62,48 +64,60 @@ public class Plugin : BasePlugin
 
 internal static class Speech
 {
-    [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
-    private delegate int SayDelegate([MarshalAs(UnmanagedType.LPWStr)] string text);
-    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int StatusDelegate();
-    private static SayDelegate? say;
-    private static StatusDelegate? stop;
-    private static StatusDelegate? running;
-    public static string Last = "";
-    public static void Initialize(string path)
+    private static readonly object gate=new();
+    private static SpeechRouter? router;
+    private static NvdaSpeechDriver? direct;
+    private static string nativePath="";
+    private static bool requestedTolk,windowsVoice,activated,closed;
+    private static string initialization="not-initialized";
+    public static string Last="";
+    public static void Initialize(string path,bool useTolk,bool windowsFallback)
     {
-        try {
-            var handle = NativeLibrary.Load(path);
-            say = Marshal.GetDelegateForFunctionPointer<SayDelegate>(NativeLibrary.GetExport(handle,"nvdaController_speakText"));
-            stop = Marshal.GetDelegateForFunctionPointer<StatusDelegate>(NativeLibrary.GetExport(handle,"nvdaController_cancelSpeech"));
-            running = Marshal.GetDelegateForFunctionPointer<StatusDelegate>(NativeLibrary.GetExport(handle,"nvdaController_testIfRunning"));
-            Reader.Log.LogInfo("NVDA controller loaded: " + path + "; testIfRunning=" + running());
-        } catch(Exception e) { Reader.Log.LogError("NVDA initialization: " + e.Message); }
-    }
-    public static void Speak(string text)
-    {
-        text = Clean(text);
-        if(string.IsNullOrWhiteSpace(text)) return;
-        Last = text;
-        Reader.Log.LogInfo("SPEAK: " + text);
-        if(running?.Invoke() == 0) {
-            stop?.Invoke();var result=say?.Invoke(text);
-            CampHintAccess.Dispatched(text,result==0);
-            Monitor.Record("speech-dispatch",new{text,backend="NVDA",accepted=result==0,result,reason=result==0?"controller-accepted":"controller-error",meaning="API acceptance only; not proof of completed playback"});
-            if(result!=0)Reader.Log.LogWarning("NVDA speech result: "+result);
-        } else {
-            CampHintAccess.Dispatched(text,false);
-            Monitor.Record("speech-dispatch",new{text,backend="NVDA",accepted=false,reason="controller-unavailable",meaning="API acceptance only; not proof of completed playback"});
-            Reader.Log.LogWarning("NVDA is not running or cannot be reached.");
+        lock(gate){
+            direct=new NvdaSpeechDriver(path);router=new SpeechRouter(null,direct);
+            nativePath=path;requestedTolk=useTolk;windowsVoice=windowsFallback;
+            initialization="Tolk="+(useTolk?"pending Unity Update":"disabled")+"; NVDA-direct="+direct.Initialization;
+            Reader.Log.LogInfo("Speech output: "+initialization);
         }
     }
-    public static void Stop() => stop?.Invoke();
+    public static void ReportStatus()
+    {
+        // Initialize COM-backed readers on Reader.Update's Unity thread, not on
+        // whichever thread the plugin loader happened to use.
+        lock(gate){
+            if(!activated&&!closed&&direct!=null){
+                activated=true;
+                if(requestedTolk){
+                    router?.Stop();
+                    var tolk=new TolkSpeechDriver(Path.Combine(Path.GetDirectoryName(nativePath)!,"Tolk","Tolk.dll"),windowsVoice);
+                    router=new SpeechRouter(tolk,direct);
+                    initialization="Tolk="+tolk.Initialization+"; NVDA-direct="+direct.Initialization+"; WindowsVoiceFallback="+windowsVoice;
+                    Reader.Log.LogInfo("Speech output on Unity thread: "+initialization);
+                }
+            }
+            Monitor.Record("speech-backends",new{initialization,thread=Environment.CurrentManagedThreadId});
+        }
+    }
+    public static void Speak(string text,bool interrupt=true)
+    {
+        text=Clean(text);if(string.IsNullOrWhiteSpace(text))return;
+        lock(gate){
+            Last=text;Reader.Log.LogInfo("SPEAK: "+text);
+            var result=router?.Speak(text,interrupt)??new SpeechDispatch(false,"none","not-initialized");
+            CampHintAccess.Dispatched(text,result.Accepted);
+            Monitor.Record("speech-dispatch",new{text,interrupt,mode=interrupt?"immediate":"queued",backend=result.Backend,accepted=result.Accepted,result=result.Result,reason=result.Reason,meaning="API acceptance only; not proof of completed playback"});
+            if(!result.Accepted)Reader.Log.LogWarning("Speech unavailable: "+result.Reason);
+        }
+    }
+    public static void Stop(){lock(gate){bool accepted=router?.Stop()==true;Monitor.Record("speech-stop",new{accepted});}}
+    public static void Shutdown(){lock(gate){closed=true;try{router?.Dispose();Monitor.Record("speech-shutdown",new{completed=true});}catch(Exception e){Reader.Log.LogWarning("Speech shutdown: "+e.Message);Monitor.Record("speech-shutdown",new{completed=false,error=e.Message});}finally{router=null;direct=null;}}}
     public static string Clean(string text) => Regex.Replace(Regex.Replace(text ?? "", @"<[^>]*>", " "), @"\s+", " ").Trim();
 }
 
 public class Reader : MonoBehaviour
 {
     public Reader(IntPtr pointer) : base(pointer) { }
-    public void OnApplicationQuit()=>Monitor.Finish();
+    public void OnApplicationQuit(){Speech.Shutdown();Monitor.Finish();}
     internal static ManualLogSource Log = null!;
     private float nextPoll;
     private int focusId;
@@ -123,18 +137,20 @@ public class Reader : MonoBehaviour
     public void Update()
     {
         try {
-            if(!firstUpdate) { firstUpdate=true; Log.LogInfo("Reader.Update is active."); Monitor.Record("reader-update",new{active=true}); }
+            I18nRuntime.Tick();
+            if(!firstUpdate) { firstUpdate=true; Log.LogInfo("Reader.Update is active."); Speech.ReportStatus(); Monitor.Record("reader-update",new{active=true}); }
             Monitor.Tick();
+            NativeDialogueRoles.Tick();
             GetWindowThreadProcessId(GetForegroundWindow(), out var pid);
             if(pid != Environment.ProcessId) return;
-            if(!announced){announced=true;Speech.Speak("模組載入完成。需要操作說明或音效試聽，請按 F1。需要當前畫面引導幫助，請按 F2。");nextPoll=Time.unscaledTime+2.5f;}
+            if(!announced){announced=true;Speech.Speak(I18n.T("ui.9e46d77d08a5","模組載入完成。需要操作說明或音效試聽，請按 F1。需要當前畫面引導幫助，請按 F2。"));nextPoll=Time.unscaledTime+2.5f;}
             for(int i=0;i<8;i++) {
                 bool down=(GetAsyncKeyState(0x70+i)&0x8000)!=0;
                 if(down && !keyDown[i]) {
                     if(i==0){pending="";DialogueAccess.Clear();CommonUi.Clear();ModuleHelp.Toggle();keyDown[i]=down;continue;}
                     else if(i==1){ContextGuide.Speak();keyDown[i]=down;continue;}
                     else if(ModuleHelp.Active){ModuleHelp.Handle(i);keyDown[i]=down;continue;}
-                    if(!ModuleHelp.Active && i==2) Speech.Speak(SettingsPopupAccess.RepeatText.Length>0?SettingsPopupAccess.RepeatText:DrumPuzzleAccess.RepeatText.Length>0?DrumPuzzleAccess.RepeatText:P2CampNavigation.RepeatText.Length>0?P2CampNavigation.RepeatText:P2EvolutionAccess.RepeatText.Length>0?P2EvolutionAccess.RepeatText:P2TreasureAccess.RepeatText.Length>0&&!CommonUi.CommandWindowActive?P2TreasureAccess.RepeatText:StructuredUi.RepeatText.Length>0?StructuredUi.RepeatText:RewardAccess.IsResultActive?RewardAccess.RepeatText:NameInputAccess.IsActive?NameInputAccess.RepeatText:OpeningAccess.IsActive?OpeningAccess.RepeatText:CommonUi.RepeatText.Length>0?CommonUi.RepeatText:string.IsNullOrEmpty(focusText)?Speech.Last:focusText);
+                    if(!ModuleHelp.Active && i==2) Speech.Speak(BalloonChoiceAccess.RepeatText.Length>0?BalloonChoiceAccess.RepeatText:SettingsPopupAccess.RepeatText.Length>0?SettingsPopupAccess.RepeatText:DrumPuzzleAccess.RepeatText.Length>0?DrumPuzzleAccess.RepeatText:P2CampNavigation.RepeatText.Length>0?P2CampNavigation.RepeatText:P2EvolutionAccess.RepeatText.Length>0?P2EvolutionAccess.RepeatText:P2TreasureAccess.RepeatText.Length>0&&!CommonUi.CommandWindowActive?P2TreasureAccess.RepeatText:StructuredUi.RepeatText.Length>0?StructuredUi.RepeatText:RewardAccess.IsResultActive?RewardAccess.RepeatText:NameInputAccess.IsActive?NameInputAccess.RepeatText:OpeningAccess.IsActive?OpeningAccess.RepeatText:CommonUi.RepeatText.Length>0?CommonUi.RepeatText:string.IsNullOrEmpty(focusText)?Speech.Last:focusText);
                     if(!ModuleHelp.Active && i==3) Speech.Speak(VisibleText());
                     if(!ModuleHelp.Active && i==4) { pending=""; DialogueAccess.Clear(); CommonUi.Clear(); Speech.Stop(); }
                     if(!ModuleHelp.Active && i==6) AttackCue.Test();
@@ -156,9 +172,9 @@ public class Reader : MonoBehaviour
             if(RewardAccess.Scan()) {pending="";return;}
             CommonUi.Scan();
             string dialogue=DialogueAccess.Take();
-            if(dialogue.Length>0) {pending="";focusText="";Speech.Speak(dialogue);}
-            string common=CommonUi.Take();
-            if(common.Length>0 && dialogue.Length==0) {pending="";focusText=common;Speech.Speak(common);}
+            if(dialogue.Length>0) {pending="";focusText="";Speech.Speak(dialogue,interrupt:false);}
+            string common=dialogue.Length==0?CommonUi.Take():"";
+            if(common.Length>0 && dialogue.Length==0) {pending="";focusText=common;Speech.Speak(common,CommonUi.TakenInterrupt);}
             if(OpeningAccess.IsActive)return;
             if(TitleAccess.IsActive) {
                 string titleText=TitleAccess.Current;
@@ -176,7 +192,7 @@ public class Reader : MonoBehaviour
             string text=selected ? Describe(selected!) : "";
             if(!announced && launcher) {
                 announced=true;
-                Speech.Speak("模組載入完成。需要操作說明或音效試聽，請按 F1。需要當前畫面引導幫助，請按 F2。");
+                Speech.Speak(I18n.T("ui.9e46d77d08a5","模組載入完成。需要操作說明或音效試聽，請按 F1。需要當前畫面引導幫助，請按 F2。"));
             }
             bool changedContext=currentContext!=context;
             if(changedContext || id!=focusId || text!=focusText) {
@@ -192,14 +208,14 @@ public class Reader : MonoBehaviour
     private string GetContext()
     {
         var e=UnityEngine.Object.FindObjectOfType<EndUserLicenseAgreementWindow>();
-        if(e && e!.gameObject.activeInHierarchy && !e.IsClosed()) return "使用者授權合約。內文為圖片，本版尚未提供完整內文朗讀";
+        if(e && e!.gameObject.activeInHierarchy && !e.IsClosed()) return I18n.T("ui.feb5568522e6","使用者授權合約。內文為圖片，本版尚未提供完整內文朗讀");
         var p=UnityEngine.Object.FindObjectOfType<PrivacyPolicyAgreementWindow>();
-        if(p && p!.gameObject.activeInHierarchy && !p.IsClosed()) return "隱私權政策。內文為圖片，本版尚未提供完整內文朗讀";
+        if(p && p!.gameObject.activeInHierarchy && !p.IsClosed()) return I18n.T("ui.b98bd642624f","隱私權政策。內文為圖片，本版尚未提供完整內文朗讀");
         var d=UnityEngine.Object.FindObjectOfType<DataUsageAgreementWindow>();
-        if(d && d!.gameObject.activeInHierarchy && !d.IsClosed()) return "資料使用同意選項";
-        if(launcher && launcher!.settingMain && launcher.settingMain.gameObject.activeInHierarchy && !launcher.settingMain.IsClosed()) return "設定";
-        if(launcher && launcher!.menuRoot && launcher.menuRoot.activeInHierarchy) return "開始選單";
-        return "標題畫面";
+        if(d && d!.gameObject.activeInHierarchy && !d.IsClosed()) return I18n.T("ui.64cf356da31d","資料使用同意選項");
+        if(launcher && launcher!.settingMain && launcher.settingMain.gameObject.activeInHierarchy && !launcher.settingMain.IsClosed()) return I18n.T("ui.0d8619aae051","設定");
+        if(launcher && launcher!.menuRoot && launcher.menuRoot.activeInHierarchy) return I18n.T("ui.ad42dd3d047b","開始選單");
+        return I18n.T("ui.6469ddabee38","標題畫面");
     }
     private string Describe(GameObject go)
     {
@@ -207,22 +223,22 @@ public class Reader : MonoBehaviour
         if(row) return SettingsAccess.Describe(row!);
         string label="";
         if(launcher is not null && launcher) {
-            if(Is(go,launcher.p1Button)) label="PATAPON 一代";
-            else if(Is(go,launcher.p2Button)) label="PATAPON 二代";
-            else if(Is(go,launcher.specialButton)) label="特別內容";
-            else if(Is(go,launcher.settingButton)) label="設定";
-            else if(Is(go,launcher.quitButton)) label="結束遊戲";
+            if(Is(go,launcher.p1Button)) label=I18n.T("ui.120d60cc3c42","PATAPON 一代");
+            else if(Is(go,launcher.p2Button)) label=I18n.T("ui.fac22c2337e1","PATAPON 二代");
+            else if(Is(go,launcher.specialButton)) label=I18n.T("ui.a78226d28e6c","特別內容");
+            else if(Is(go,launcher.settingButton)) label=I18n.T("ui.0d8619aae051","設定");
+            else if(Is(go,launcher.quitButton)) label=I18n.T("ui.2f6c2d994ca0","結束遊戲");
         }
         if(label.Length==0) label=TextOf(go);
-        if(label.Length==0) label="未標示的選項，"+go.name;
+        if(label.Length==0) label=I18n.T("ui.19317f59e5a9","未標示的選項，")+go.name;
         var toggle=go.GetComponent<Toggle>();
-        if(toggle) return label+"，核取方塊，"+(toggle.isOn?"已勾選":"未勾選");
+        if(toggle) return label+I18n.T("ui.cf9551d9635b","，核取方塊，")+(toggle.isOn?I18n.T("ui.7990b4e6847e","已勾選"):I18n.T("ui.a2d59805e3b3","未勾選"));
         var slider=go.GetComponent<Slider>();
-        if(slider) return label+"，滑桿，"+slider.value.ToString("0.##");
+        if(slider) return label+I18n.T("ui.95a8d6e9711b","，滑桿，")+slider.value.ToString("0.##");
         var scrollbar=go.GetComponent<Scrollbar>();
-        if(scrollbar) return "文件捲動，"+Math.Round(scrollbar.value*100)+"%";
+        if(scrollbar) return I18n.T("ui.f870885ac81f","文件捲動，")+Math.Round(scrollbar.value*100)+"%";
         var select=go.GetComponent<Selectable>();
-        return label+(select ? (select.IsInteractable()?"，按鈕":"，無法使用") : "");
+        return label+(select ? (select.IsInteractable()?I18n.T("ui.f9afcd60b0b0","，按鈕"):I18n.T("ui.90d8b88f33b8","，無法使用")) : "");
     }
     private static bool Is(GameObject go, Component? c) => c && go==c!.gameObject;
     private static string TextOf(GameObject go)
@@ -239,12 +255,12 @@ public class Reader : MonoBehaviour
         if(RewardAccess.IsResultActive)return RewardAccess.RepeatText;
         if(NameInputAccess.IsActive)return NameInputAccess.RepeatText;
         if(OpeningAccess.IsActive)return OpeningAccess.RepeatText;
-        if(TitleAccess.IsActive) return "開始選單：開始新遊戲、繼續遊戲、返回。現在選擇："+TitleAccess.Current;
+        if(TitleAccess.IsActive) return I18n.T("ui.be25227b01e2","開始選單：開始新遊戲、繼續遊戲、返回。現在選擇：")+TitleAccess.Current;
         var texts=new List<string>();
         foreach(var t in UnityEngine.Object.FindObjectsOfType<TMP_Text>()) if(t && t.isActiveAndEnabled && !MiracleAccess.Suppress(t)) texts.Add(Speech.Clean(t.text));
         foreach(var t in UnityEngine.Object.FindObjectsOfType<Text>()) if(t && t.isActiveAndEnabled) texts.Add(Speech.Clean(t.text));
         string result=string.Join("。",texts.Where(t=>t.Length>0).Distinct());
-        return result.Length>0?result:"目前找不到可讀取的文字";
+        return result.Length>0?result:I18n.T("ui.e30eecc6c0bb","目前找不到可讀取的文字");
     }
 }
 
@@ -280,11 +296,11 @@ internal static class SettingsAccess
         var panel=row.gameObject.GetComponent<SaveDataPanel>();
         var fresh=row.gameObject.GetComponent<NewSavePanel>();
         if(panel || fresh) {
-            string mode=saveMenu && saveMenu!.title ? Speech.Clean(saveMenu.title.text) : "存檔欄位";
-            mode=mode switch {"SAVE"=>"存檔","LOAD"=>"讀取存檔","DELETE"=>"刪除存檔",_=>mode};
-            string slot=saveMenu?$"第 {saveMenu!.cursorIndex+1} 格，":"";
-            if(fresh) return mode+"，"+slot+"新資料";
-            var detail=new List<string>{mode,slot+"已有存檔"};
+            string mode=saveMenu && saveMenu!.title ? Speech.Clean(saveMenu.title.text) : I18n.T("ui.2f4fa933d1b1","存檔欄位");
+            mode=mode switch {"SAVE"=>I18n.T("ui.959ac5386b6e","存檔"),"LOAD"=>I18n.T("ui.8c660a4a11a4","讀取存檔"),"DELETE"=>I18n.T("ui.4672b3c1c37b","刪除存檔"),_=>mode};
+            string slot=saveMenu?I18n.T("ui.590977803a0e","第 {0} 格，",saveMenu!.cursorIndex+1):"";
+            if(fresh) return mode+"，"+slot+I18n.T("ui.c04b7dd67608","新資料");
+            var detail=new List<string>{mode,slot+I18n.T("ui.aa3c79dc6ac6","已有存檔")};
             if(panel!.playerNameText) detail.Add(Speech.Clean(panel.playerNameText.text));
             if(panel.lastMissionNameText) detail.Add(Speech.Clean(panel.lastMissionNameText.text));
             if(panel.playTimeText) detail.Add(Speech.Clean(panel.playTimeText.text));
@@ -311,15 +327,15 @@ internal static class SettingsAccess
                 rawKeys.Add(raw);
                 string key=i<bindingNames.Count?bindingNames[i]:Speech.Clean(raw);
                 if(key.Length==0)key=BindingNames.FromSprite(raw,rebind.GetAction().ToString());
-                keys.Add($"第 {i+1} 組，"+(key.Length>0?key:"未取得按鍵名稱")+(i==selected?"，目前選取":""));
+                keys.Add(I18n.T("ui.a1a9bf40e288","第 {0} 組，",i+1)+(key.Length>0?key:I18n.T("ui.bf40c3ac4135","未取得按鍵名稱"))+(i==selected?I18n.T("ui.7f16d4fdd7dd","，目前選取"):""));
             }
-            parts.Add("目前綁定，"+(keys.Count>0?string.Join("；",keys):"未取得綁定欄位"));
+            parts.Add(I18n.T("ui.921b915c5e98","目前綁定，")+(keys.Count>0?string.Join("；",keys):I18n.T("ui.3b769bda35a7","未取得綁定欄位")));
             string bindingKey=action+"|"+selected+"|"+string.Join("|",rawKeys);
             if(bindingKey!=lastBinding) {
                 lastBinding=bindingKey;
                 Monitor.Record("key-binding-focus",new{action= rebind.GetAction().ToString(),label=action,selected,keys=rawKeys,bindingNames});
             }
-            if(row.IsEditing)parts.Add("編輯中");
+            if(row.IsEditing)parts.Add(I18n.T("ui.730c0648427f","編輯中"));
             return string.Join("，",parts.Where(p=>!string.IsNullOrWhiteSpace(p)).Distinct());
         }
         string label=row.itemText ? Speech.Clean(row.itemText.text) : "";
@@ -329,14 +345,14 @@ internal static class SettingsAccess
         var slider=row.gameObject.GetComponent<SliderMenuItem>();
         if(choice) {
             parts.Add(Speech.Clean(choice.CurrentText));
-            if(choice.options!=null) parts.Add($"第 {choice.currentIndex+1} 項，共 {choice.options.Length} 項");
+            if(choice.options!=null) parts.Add(I18n.T("ui.73f1855f451e","第 {0} 項，共 {1} 項",choice.currentIndex+1,choice.options.Length));
         } else if(text && text.contentText) parts.Add(Speech.Clean(text.contentText.text));
-        else if(slider && slider.slider) parts.Add("滑桿，"+slider.slider.value.ToString("0.##"));
+        else if(slider && slider.slider) parts.Add(I18n.T("ui.a2b83904bfbf","滑桿，")+slider.slider.value.ToString("0.##"));
         else {
             foreach(var t in row.GetComponentsInChildren<TMP_Text>())
                 if(t && t.isActiveAndEnabled) parts.Add(Speech.Clean(t.text));
         }
-        if(row.IsEditing) parts.Add("編輯中");
+        if(row.IsEditing) parts.Add(I18n.T("ui.730c0648427f","編輯中"));
         string result=string.Join("，",parts.Where(p=>!string.IsNullOrWhiteSpace(p)).Distinct());
         return result;
     }

@@ -193,8 +193,8 @@ internal static class TitleAccess
     {
         try {
             int index=__instance.selectIndex_;
-            string label=index switch {0=>"開始新遊戲，New Game",1=>"繼續遊戲，Continue",2=>"返回",_=>"選項 "+(index+1)};
-            string text="PATAPON 二代，"+label+"，第 "+(index+1)+" 項";
+            string label=index switch {0=>I18n.T("ui.a21f0776f4d6","開始新遊戲，New Game"),1=>I18n.T("ui.d4cf871cc91c","繼續遊戲，Continue"),2=>I18n.T("ui.572cf45ba436","返回"),_=>I18n.T("ui.75a462562fa0","選項 ")+(index+1)};
+            string text=I18n.T("ui.780eebaba52b","PATAPON 二代，")+label+I18n.T("ui.fab2a038b6d0","，第 ")+(index+1)+I18n.T("ui.06189562e746"," 項");
             if(text!=Current) Monitor.Record("native-title-focus",new{game="P2",index,state=__instance.state_.ToString(),label});
             Current=text;lastSeen=Environment.TickCount64;
         } catch(Exception e) {Monitor.Record("native-title-error",new{game="P2",error=e.Message});}
@@ -202,8 +202,8 @@ internal static class TitleAccess
     {
         try {
             int index=__instance.selectIndex_;
-            string label=index switch {0=>"開始新遊戲",1=>"繼續遊戲",2=>"返回",_=>"選項 "+(index+1)};
-            string text="PATAPON 一代，"+label+"，第 "+(index+1)+" 項";
+            string label=index switch {0=>I18n.T("ui.9fb7beef5c64","開始新遊戲"),1=>I18n.T("ui.0a4017800a79","繼續遊戲"),2=>I18n.T("ui.572cf45ba436","返回"),_=>I18n.T("ui.75a462562fa0","選項 ")+(index+1)};
+            string text=I18n.T("ui.fe86ff35ec35","PATAPON 一代，")+label+I18n.T("ui.fab2a038b6d0","，第 ")+(index+1)+I18n.T("ui.06189562e746"," 項");
             if(text!=Current) Monitor.Record("native-title-focus",new{game="P1",index,state=__instance.state_.ToString(),label});
             Current=text;lastSeen=Environment.TickCount64;
         } catch(Exception e) {Monitor.Record("native-title-error",new{error=e.Message});}
