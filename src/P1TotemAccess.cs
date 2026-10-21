@@ -41,6 +41,7 @@ internal static class P1TotemAccess
     {
         if(!BattleMonitor.Active)return;
         try{
+            WorldObjectLog.Observe(__instance);
             if(__instance.layoutParam_?.paramName!="TOTEMPOLE")return;
             long now=Environment.TickCount64;if(now<nextObject)return;nextObject=now+100;
             uint id=__instance.id_;var pos=__instance.position_;

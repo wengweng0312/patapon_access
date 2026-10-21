@@ -1,4 +1,4 @@
-using BepInEx;
+﻿using BepInEx;
 using BepInEx.Unity.IL2CPP;
 using BepInEx.Logging;
 using Il2CppInterop.Runtime.Injection;
@@ -14,7 +14,7 @@ namespace PataponAccess;
 [BepInPlugin("org.patapon.access.start", "Patapon Start Screen Access", Plugin.ModVersion)]
 public class Plugin : BasePlugin
 {
-    public const string ModVersion="0.6.68";
+    public const string ModVersion="0.6.69";
     private Reader? reader;
     public override void Load()
     {
@@ -37,7 +37,7 @@ public class Plugin : BasePlugin
         CampHintAccess.Install();
         MiracleAccess.Install(Config);
         BattleMonitor.Install(diagnostics && Config.Bind("Diagnostics", "Battle", true, "Record P1/P2 scalar attack checks, collision call counts and weather requests without reading native object fields.").Value);
-        RangeMonitor.Install(diagnostics,Config.Bind("Audio", "EnemyRangeCue", true, "Experimental cue on rising P1/P2 long enemy sight flag; does not indicate hit.").Value);
+        RangeMonitor.Install(diagnostics,Config.Bind("Audio", "EnemyRangeCue", true, "Experimental cue on rising P1/P2 long enemy sight flag; does not indicate hit.").Value,Config.Bind("Audio","ObjectRangeCue",true,"Separate enter/leave sounds for native attackable scenery sight flags. Does not guarantee hit, destruction or reward.").Value);
         OpeningAccess.Install();
         NameInputAccess.Install();
         RewardAccess.Install();
@@ -169,6 +169,7 @@ public class Reader : MonoBehaviour
             AttackCue.Scan();
             RangeCue.Scan();
             CartRange.Scan();
+            ObjectRangeCue.Scan();
             if(RewardAccess.Scan()) {pending="";return;}
             CommonUi.Scan();
             string dialogue=DialogueAccess.Take();

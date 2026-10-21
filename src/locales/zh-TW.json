@@ -283,5 +283,8 @@
   "help.battle": "戰鬥按鍵",
   "help.sounds": "音效試聽",
   "help.navigation": "模組幫助。左右切換分類，上下選擇項目。Enter 試聽或切換設定，Shift 加上下調整音量。Home、End 到目前分類的第一項、最後一項。F3 重讀，Escape 或 F1 關閉。幫助不暫停遊戲。",
-  "reward.unavailable": "戰鬥結算。目前沒有可朗讀的戰利品資料。"
+  "reward.unavailable": "戰鬥結算。目前沒有可朗讀的戰利品資料。",
+  "help.object-range-enter": "音效試聽：可攻擊場景物件進入射程，兩聲木質上行。按 Enter 播放。",
+  "help.object-range-leave": "音效試聽：可攻擊場景物件離開射程，兩聲木質下行。按 Enter 播放。",
+  "training.currency": "持有響聲 {0}"
 }

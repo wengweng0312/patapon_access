@@ -99,6 +99,15 @@ internal static class CommonUi
             }
             string text=string.Join("，",new[]{title,label,help}.Where(s=>s.Length>0).Distinct());
             if(label.Length==0) return;
+            // Only native life-tree behaviours own this balance; do not infer it from text or cost_.
+            if(ns=="P1") {
+                var callback=Get(item,"callback");
+                var target=callback==null?null:Get(callback,"Target") as Il2CppSystem.Object;
+                if(target?.TryCast<P1.Bases.Camp.SelectItem.Behavior.EnagyValueDisp>()!=null) {
+                    var data=P1.LaboCommon.getInstance()?.getLaboGlobalData()?.basesData;
+                    if(data!=null) text+="，"+I18n.T("training.currency","持有響聲 {0}",data.energy);
+                }
+            }
             long now=Environment.TickCount64;
             string ordinal=optionIndices.Contains(index)?I18n.T("ui.33ca23bae65d","，第 {0} 項，共 {1} 項",optionIndices.IndexOf(index)+1,optionIndices.Count):I18n.T("ui.fab2a038b6d0","，第 ")+(index+1)+I18n.T("ui.06189562e746"," 項");
             string owner=__instance.GetType().FullName+":"+((Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase)__instance).Pointer;
@@ -114,7 +123,7 @@ internal static class CommonUi
             string focusKey=owner+"|"+text+"|"+body;
             if(focusKey!=lastFocus || now-focusSeen>1500 || entered) {
                 lastFocus=focusKey;pending=repeatText;pendingDialog=isDialog;readyAt=now+140;
-                Monitor.Record("common-selection",new{type=__instance.GetType().FullName,index,title,body,label,help,isDialog,confirmation});
+                Monitor.Record("common-selection",new{type=__instance.GetType().FullName,index,title,body,label,help,isDialog,confirmation,text});
             }
             pendingVariables=unresolvedVariables;
             focusSeen=now;

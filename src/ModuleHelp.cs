@@ -57,6 +57,8 @@ internal static class ModuleHelp
         Add(I18n.T("ui.5b9c5cfedcff","音效試聽：靠近鼓點機關，柔和雙音。按 Enter 播放。"),"mechanism-near.wav");
         Add(I18n.T("ui.df6701f9db99","音效試聽：一般敵人進入射程，兩聲上行。按 Enter 播放。"),"enemy-range.wav");
         Add(I18n.T("ui.6c48fb523e51","音效試聽：一般敵人離開射程，兩聲下行。按 Enter 播放。"),"enemy-range-leave.wav");
+        Add(I18n.T("help.object-range-enter","音效試聽：可攻擊場景物件進入射程，兩聲木質上行。按 Enter 播放。"),"object-range-enter.wav");
+        Add(I18n.T("help.object-range-leave","音效試聽：可攻擊場景物件離開射程，兩聲木質下行。按 Enter 播放。"),"object-range-leave.wav");
         Add(I18n.T("ui.399f68b42f52","音效試聽：馬車進入射程，三聲鐘音上行。按 Enter 播放。"),"cart-range-enter.wav");
         Add(I18n.T("ui.8f7d93c32c19","音效試聽：馬車離開射程，三聲鐘音下行。按 Enter 播放。"),"cart-range-leave.wav");
         Add(I18n.T("ui.7ba7a80c9ab0","音效試聽：Boss 攻擊動作開始，單聲粗短音。按 Enter 播放。"),"boss-attack-start.wav");

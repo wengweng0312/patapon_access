@@ -6,6 +6,7 @@ namespace PataponAccess;
 internal static class ItemAndPlaceAccess
 {
     private static string lastItem="",lastPlace="";
+    private static readonly ItemSelectionReadout p1ItemReadout=new();
     private static string lastEquipment="";
     private static long campSeen;
     public static bool CampActive=>Environment.TickCount64-campSeen<500;
@@ -65,7 +66,9 @@ internal static class ItemAndPlaceAccess
     {
         try {
             var owner=Get(__instance,"owner_");
-            if(owner==null || Call(owner,"isActive") is not true) return;
+            if(owner==null)return;
+            string ownerKey=owner.GetType().FullName+":"+Get(owner,"Pointer");
+            if(Call(owner,"isActive") is not true){p1ItemReadout.Close(ownerKey);return;}
             string ns=__instance.GetType().Namespace!.Split('.')[0];
             int index=Convert.ToInt32(Call(__instance,"getSelectIndex"));
             var slots=Get(owner,"slotArray_");
@@ -86,7 +89,16 @@ internal static class ItemAndPlaceAccess
             string? explain=UnitNames.Localized(ns,Get(param,"explainId"));
             string type=owner.GetType().Name;
             string context=type.Contains("Stare")?I18n.T("ui.2113227fb3b5","倉庫"):I18n.T("ui.550259ba7104","道具選擇");
-            string text=context+"，"+name+count+(string.IsNullOrEmpty(explain)?"":"。"+explain);
+            string content=name+count+(string.IsNullOrEmpty(explain)?"":"。"+explain);
+            string text=context+"，"+content;
+            if(ns=="P1"&&!type.Contains("Stare")){
+                itemSeen=Environment.TickCount64;
+                string? readout=p1ItemReadout.Observe(ownerKey,context,content);
+                if(readout==null)return;
+                CommonUi.QueueSelection(readout);
+                Monitor.Record("selected-item",new{ns,index,itemId,name,count,explain,context,owner=ownerKey,text=readout,introPolicy="once-per-window-visit"});
+                return;
+            }
             string key=ns+":"+itemId+":"+text;
             long now=Environment.TickCount64;
             bool reopened=now-itemSeen>500;

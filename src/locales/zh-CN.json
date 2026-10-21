@@ -283,5 +283,8 @@
   "help.battle": "战斗按键",
   "help.sounds": "音效试听",
   "help.navigation": "模组帮助。左右切换分类，上下选择项目。Enter 试听或切换设置，Shift 加上下调整音量。Home、End 到当前分类的第一项、最后一项。F3 重读，Escape 或 F1 关闭。帮助不暂停游戏。",
-  "reward.unavailable": "战斗结算。目前没有可朗读的战利品数据。"
+  "reward.unavailable": "战斗结算。目前没有可朗读的战利品数据。",
+  "help.object-range-enter": "音效试听：可攻击场景物件进入射程，两声木质上行。按 Enter 播放。",
+  "help.object-range-leave": "音效试听：可攻击场景物件离开射程，两声木质下行。按 Enter 播放。",
+  "training.currency": "持有响声 {0}"
 }

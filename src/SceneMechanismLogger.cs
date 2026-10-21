@@ -6,9 +6,10 @@ internal static class SceneMechanismLogger
     private static readonly Dictionary<IntPtr,(string state,long at)> snapshots=new();
     private static readonly Dictionary<IntPtr,long> sampledAt=new();
     private static long lastError;
-    public static void BeginMission(){snapshots.Clear();sampledAt.Clear();DrumPuzzleAccess.Clear();}
+    public static void BeginMission(){snapshots.Clear();sampledAt.Clear();WorldObjectLog.Reset();DrumPuzzleAccess.Clear();}
     public static void Install(bool diagnostics)
     {
+        WorldObjectLog.Configure(diagnostics);
         // Runtime puzzle reading remains available when diagnostics are disabled.
         var h=new Harmony("org.patapon.access.scene-mechanism-log");
         Hook(h,typeof(P2.Game.Gimmick.Gimmick),"update",nameof(Update));
@@ -35,6 +36,7 @@ internal static class SceneMechanismLogger
         if(!BattleMonitor.Active)return;
         try {
             var gimmick=__instance.TryCast<P2.Game.Gimmick.Gimmick>();
+            if(gimmick!=null)WorldObjectLog.Script(gimmick,__0,__result);
             string? name=gimmick?.layoutParam_?.name;
             if(!MechanismNames.IsDrumPuzzle(name))return;
             Monitor.Record("scene-mechanism-event",new{name,scriptLabel=__0,userId=__1,userId2=__2,result=__result});
@@ -45,6 +47,7 @@ internal static class SceneMechanismLogger
     {
         if(!BattleMonitor.Active)return;
         try {
+            WorldObjectLog.Observe(gimmick);
             var layout=gimmick.layoutParam_;string? name=layout?.name;
             if(!MechanismNames.IsDrumPuzzle(name))return;
             var key=gimmick.Pointer;long now=Environment.TickCount64;
