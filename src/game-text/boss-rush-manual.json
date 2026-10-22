@@ -1,0 +1,34 @@
+[
+  {
+    "language": "EN",
+    "source": "Assets/AddressableMediaData/Launcher/Special/EN/sp_manual.tga",
+    "sprite": "sp_manual",
+    "sourceSha256": "812148ea64251994f77fa32b5ca4dd6f32f231f92fff8c03ff736fe00e449a6f",
+    "review": "manually checked against four source images",
+    "text": "What is \"BOSS RUSH CHALLENGE\"?\nThis is a mode where players use armies raised in PATAPON 1 and PATAPON 2 to defeat consecutive bosses.\n- This mode can only be played using save data after clearing the main scenario.\n- The number and strength of bosses that appear vary with each stage.\nThe bosses will appear at random, testing your skill as a deity.\n- The HP and survival status of your army will be carried over throughout the same stage.\nPatapon whose HP reaches 0 will fall in battle without dropping a cap.\n- Patapon will recover a fixed amount of HP each battle.\nUnits in reserve will recover more HP than units participating in battle.\nHatapon, as an exception, will recover full HP each battle.\n- Upon clearing a stage, your army will return to the status from the beginning of the Boss Rush Challenge,\nwith HP fully restored and units fully revived.\nIt is only after a clearing a stage that play data can be saved.\n(Save data can only be created once each for PATAPON 1 and PATAPON 2.)\n- Players restart from the last save point after experiencing a Game Over. Aim to clear each stage!\nOccurrences within this mode such as losing Patapon or consuming items do not affect the main scenario,\nso have fun and don't be afraid to give it your all!!"
+  },
+  {
+    "language": "JA",
+    "source": "Assets/AddressableMediaData/Launcher/Special/JA/sp_manual.tga",
+    "sprite": "sp_manual",
+    "sourceSha256": "1e5216de888d6a3c053412f98270eae52ab28cd350594cd6c91d2c22c303d360",
+    "review": "manually checked against four source images",
+    "text": "BOSS RUSH CHALLENGE とは？\n「PATAPON 1」「PATAPON 2」それぞれ本編で育成した部隊を使用して、\n次々に登場するBOSSと連続で戦うモードとなります。\n本編をクリア済みのセーブデータでのみプレイが可能です。\n・STAGEが上がるごとに登場するBOSSの体数や強さが変化します。\nまた、登場するBOSSはランダムとなりますので、あなたのかみさまとしての手腕が試されます。\n・同STAGE内では、部隊のHPや生存状況が引き継がれます。バトル中にHPが0になったパタポンはキャップを落とさずに力尽きます。\n・パタポンのHPは1バトルごとに一定量回復します。控えの部隊は出撃する部隊よりも多くHPが回復します。\n例外として「はたポン」のみ、1バトルごとにHPが全回復します。\n・STAGE CLEARのタイミングで、部隊のHPが全回復したり、それまでに力尽きてしまっていたパタポンも復活したり等、\nBOSS RUSH CHALLENGE開始時の状態にリフレッシュされます。このタイミングでのみプレイデータがセーブされます。\n(作成されるセーブデータは「PATAPON 1」「PATAPON 2」それぞれ1つずつのみとなります)\n・GAME OVERとなった場合には、最終セーブ地点からの再挑戦が可能です。まずは各STAGEのクリアを目指しましょう!\nパタポンのロストやアイテム消費等、本モードで発生するあらゆる出来事は\n本編には反映されませんので、安心して”総力をかけて”お楽しみください!!"
+  },
+  {
+    "language": "SC",
+    "source": "Assets/AddressableMediaData/Launcher/Special/SC/sp_manual.tga",
+    "sprite": "sp_manual",
+    "sourceSha256": "00fedda3cc1313ebf11343651aded63edd761a87f538bbae14c825170dcf02be",
+    "review": "manually checked against four source images",
+    "text": "什么是 BOSS RUSH CHALLENGE？\n玩家可以在此模式中使用“PATAPON1”、“PATAPON2”主游戏中培育的部队击倒接连登场的头目。\n·只有已通关主游戏的保存数据才能游玩此模式\n·每通关一个STAGE，STAGE内登场的头目数量与强度都会有所变化。\n登场的头目皆为随机抽选，考验玩家身为神明大人的技术。\n·在同一个STAGE内，PATAPON部队的HP与生存状况会维持不变。\n在战斗中HP归零的PATAPON将会力竭倒地，且不会掉落头盔。\n·PATAPON会在每一场战斗后恢复部分HP。待机部队会比出战部队恢复更多HP。\n唯有“旗手PON”会在每一场战斗后恢复所有HP。\n通关STAGE的时候，所有PATAPON部队会恢复全部HP、力竭倒地的PATAPON会复活等，\n部队将回归到开始BOSS RUSH CHALLENGE时的状态。只有此时可以保存游玩数据\n(“PATAPON1”、“PATAPON2”各自只能建立1个保存数据）\n·如果GAME OVER时，可以从最后保存点再次进行挑战。首先以通关各个STAGE为目标吧！\n在本模式中失去的PATAPON或消耗的道具等，所有事件皆不会影响主游戏，请安心并「全力」享受吧！"
+  },
+  {
+    "language": "TC",
+    "source": "Assets/AddressableMediaData/Launcher/Special/TC/sp_manual.tga",
+    "sprite": "sp_manual",
+    "sourceSha256": "b1a41b46e473a2d05ef8cf9e2e13129cc8618e7e816d5132a6b7a1fc6e2a4aa7",
+    "review": "manually checked against four source images",
+    "text": "什麼是 BOSS RUSH CHALLENGE？\n玩家可以在此模式中使用「PATAPON1」、「PATAPON2」主遊戲中培育的部隊擊倒接連登場的頭目。\n·只有已通關主遊戲的保存資料才能遊玩此模式\n·每通關一個STAGE，STAGE內登場的頭目數量與強度都會有所變化。\n登場的頭目皆為隨機抽選，考驗玩家身為神明大人的技術。\n·在同一個STAGE內，PATAPON部隊的HP與生存狀況會維持不變。\n在戰鬥中HP歸零的PATAPON將會力竭倒地，且不會掉落頭盔。\n·PATAPON會在每一場戰鬥後恢復部分HP。待機部隊會比出戰部隊恢復更多HP。\n唯有「旗手PON」會在每一場戰鬥後恢復所有HP。\n通關STAGE的時候，所有PATAPON部隊會恢復全部HP、力竭倒地的PATAPON會復活等，\n部隊將回歸到開始BOSS RUSH CHALLENGE時的狀態。只有此時可以保存遊玩資料\n(「PATAPON1」、「PATAPON2」各自只能建立1個保存資料)\n·如果GAME OVER時，可以從最後保存點再次進行挑戰。首先以通關各個STAGE為目標吧！\n在本模式中失去的PATAPON或消耗的道具等，所有事件皆不會影響主遊戲，請安心並「全力」享受吧！"
+  }
+]

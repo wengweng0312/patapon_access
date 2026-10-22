@@ -15,7 +15,8 @@ internal static class StructuredUi
     private static readonly Dictionary<IntPtr,string[]> stats=new();
     private static readonly Dictionary<IntPtr,DialogData> dialogs=new();
     private static string gift="",squad="",candidate="",spoken="",repeat="";
-    private static long giftSeen,squadSeen,changedAt;
+    private static long giftSeen,squadSeen,changedAt,extraSeen,nextSquadRead;
+    private static string extra="";
     private static bool active;
     public static string ContextKind {get;private set;}="";
     private static readonly SquadIntroTracker squadIntro=new();
@@ -29,13 +30,15 @@ internal static class StructuredUi
     {
         var h=new Harmony("org.patapon.access.structured-ui");
         P2SquadAccess.Install(h);
-        foreach(string ns in new[]{"P1","P2"}) {
+        RushP2SquadAccess.Install(h);
+        foreach(string game in new[]{"P1","P1S"})Patch(h,game+".Bases.Organization.ExtraMenu","update",nameof(Extra));
+        foreach(string ns in new[]{"P1","P2","P1S","P2S"}) {
             Patch(h,ns+".Bases.Item.Dialog","setup",nameof(DialogSetup));
             Patch(h,ns+".Bases.Item.PresentDialog","update",nameof(Gift));
         }
-        foreach(string ns in new[]{"P1","P2"}) {
+        foreach(string ns in new[]{"P1","P2","P1S","P2S"}) {
             // P2 Message is a value struct, unlike P1 reference type. Do not detour it.
-            if(ns=="P1")Patch(h,ns+".Bases.Organization.SquadStatusDisplay","setMessage",nameof(Stat));
+            if(ns is "P1" or "P1S")Patch(h,ns+".Bases.Organization.SquadStatusDisplay","setMessage",nameof(Stat));
             Patch(h,ns+".Bases.Organization.SquadSelectMenu","update",nameof(Squad));
         }
     }
@@ -56,6 +59,7 @@ internal static class StructuredUi
     {
         try {
             if((Call(__instance,"isActive") is not true&&Get(__instance,"isActiveStatusDisplay_") is not true)||ItemAndPlaceAccess.EquipmentActive)return;
+            if(Environment.TickCount64<nextSquadRead)return;nextSquadRead=Environment.TickCount64+100;
             // An active native status page owns its readout even while resources
             // are loading. Never fall back to a soup of pooled background text.
             squadKind="squad";squad=I18n.T("ui.5ea850d4e5f5","部隊狀態，資料尚未取得");
@@ -70,12 +74,45 @@ internal static class StructuredUi
             string game=__instance.GetType().Namespace!.Split('.')[0];
             var display=Get(__instance,"statusDisplay_");
             string[] values=Array.Empty<string>();
-            if(game=="P1"&&(display==null||!stats.TryGetValue(Ptr(display),out values!)||values.Any(string.IsNullOrWhiteSpace)))return;
-            if(game=="P2")values=SquadScreenValues.Read();
-            int reborn=0,missions=0;var units=Call(__instance,"getSelectAddingParam");
-            if(units!=null)for(int i=0;i<Math.Min(64,Convert.ToInt32(Get(units,"Count")));i++){var unit=Call(units,"get_Item",i);if(unit==null)continue;reborn+=Convert.ToInt32(Get(unit,"deadCount"));missions=Math.Max(missions,Convert.ToInt32(Get(unit,"missionCount")));}
-            squad=game=="P2"?SquadScreenValues.Describe(name,index,total,reborn,missions,values):ReadoutText.Squad(name,index,total,Math.Clamp(reborn,0,999),Math.Clamp(missions,0,999),values);squadSeen=Environment.TickCount64;
+            if((game is "P1" or "P1S")&&(display==null||!stats.TryGetValue(Ptr(display),out values!)||values.Any(string.IsNullOrWhiteSpace)))return;
+            if(game is "P2" or "P2S")values=SquadScreenValues.Read();
+            if(game is "P2" or "P2S")squad=SquadScreenValues.Describe(name,index,total,0,0,values);
+            else {
+                // The active display owns both labels and values. Do not replace its
+                // terminology or derive counters from the underlying soldier list.
+                SquadScreenValues.Read();
+                var parts=new List<string>{name};parts.AddRange(SquadScreenValues.Headers);
+                var rows=display==null?null:Get(display,"messageArray_");
+                if(rows!=null)for(int i=0;i<Math.Min(values.Length,Convert.ToInt32(Get(rows,"Count")));i++){
+                    var row=Call(rows,"get_Item",i);var labelMessage=row==null?null:Get(row,"explain");
+                    string label=labelMessage==null?"":DialogueText.Clean(Call(labelMessage,"getDrawInfoMessage") as string??"");
+                    if(label.Length>0&&!string.IsNullOrWhiteSpace(values[i]))parts.Add(label+" "+values[i]);
+                }
+                squad=string.Join("。",parts);
+            }
+            squadSeen=Environment.TickCount64;
         }catch(Exception e){Reader.Log.LogWarning("Squad readout: "+e.Message);}
+    }
+    private static void Extra(object __instance)
+    {
+        try {
+            var menu=__instance;string game=menu.GetType().Namespace!.Split('.')[0];
+            var scene=Get(menu,"scene_");var selector=scene==null?null:Get(scene,"itemSelectWindow_");
+            if(Get(menu,"isActive_") is not true||Get(menu,"isActiveItemSelect_") is true||(selector!=null&&Get(selector,"isActive_") is true)){extraSeen=0;return;}
+            int index=Convert.ToInt32(Get(menu,"selectIndex_"));
+            if(index is not (0 or 1)){extraSeen=0;return;}
+            int id=Convert.ToInt32(Call(menu,index==0?"getMiracleItemId":"getCookingItemId"));
+            string header=index==0?I18n.T("loadout.miracle","奇蹟"):I18n.T("loadout.cooking","料理");
+            string name=I18n.T("loadout.none","未裝備");string? explain=null;
+            if(id>=0){
+                var items=scene==null?null:Call(scene,"getItemOperator");var param=items==null?null:Call(items,"getItemParam",id);
+                name=param==null?I18n.T("ui.ce8bbee8ab33","選項名稱未取得"):UnitNames.FetchLocalized(game,unchecked((uint)Convert.ToInt32(Get(param,"nameId"))))??I18n.T("ui.ce8bbee8ab33","選項名稱未取得");
+                if(param!=null)explain=UnitNames.FetchLocalized(game,unchecked((uint)Convert.ToInt32(Get(param,"explainId"))));
+            }
+            string text=header+"，"+name+(string.IsNullOrWhiteSpace(explain)?"":"。"+explain);
+            if(extra!=text||Environment.TickCount64-extraSeen>500)Monitor.Record("loadout-extra-slot",new{game,index,id,text});
+            extra=text;extraSeen=Environment.TickCount64;
+        }catch(Exception e){extraSeen=0;Reader.Log.LogWarning("Extra slot: "+e.Message);}
     }
     private static void DialogSetup(object __instance,int __1,object __2,int __3,object __4)
     {
@@ -117,9 +154,10 @@ internal static class StructuredUi
         long now=Environment.TickCount64;string save=SaveDialog(out var choice);
         bool giving=save.Length==0&&now-giftSeen<250;
         if(giving)choice=giftChoice;
-        string text=ReadoutText.Select(save,giving?gift:"",now-squadSeen<250?squad:"",CommonUi.CommandWindowActive);
+        bool extraActive=now-extraSeen<250&&!ItemAndPlaceAccess.EquipmentActive;
+        string text=ReadoutText.Select(save,giving?gift:"",extraActive?extra:now-squadSeen<250?squad:"",CommonUi.CommandWindowActive);
         if(text.Length==0){if(active){if(!ItemAndPlaceAccess.EquipmentActive)CommonUi.Clear();DialogueAccess.Clear();}active=false;ContextKind="";squadIntro.Reset();candidate=spoken=repeat="";dialogSpeech.Reset();return false;}
-        ContextKind=save.Length>0?"save-confirm":giving?"gift-confirm":squadKind;
+        ContextKind=save.Length>0?"save-confirm":giving?"gift-confirm":extraActive?"extra-slot":squadKind;
         if(ContextKind!="squad")squadIntro.Reset();
         if(!active){CommonUi.Clear();DialogueAccess.Clear();}active=true;repeat=text;
         string signature=choice==null?text:choice.key+"|"+text;

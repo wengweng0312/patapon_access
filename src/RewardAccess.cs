@@ -10,17 +10,16 @@ internal static class RewardAccess
     private static readonly Dictionary<(string game,int id),(uint nameId,int count,long at)> gains=new();
     private static readonly Dictionary<(string game,int id),(uint nameId,int count)> battleGains=new();
     private static bool battleEnded;
-    private static string inventorySummary="";
-    private static long battleChangedAt;
+        private static long battleChangedAt;
     private static long lastResultSeen;
     private static bool resultSeen;
     private static string miniRepeat="";
     public static string RepeatText=>IsResultActive ? Summary : miniRepeat;
     public static bool IsResultActive=>NativeResultAccess.State.Active(Environment.TickCount64)||(resultSeen&&Environment.TickCount64-lastResultSeen<500);
-    private static string Summary=>inventorySummary.Length>0?inventorySummary:NativeResultAccess.State.Active(Environment.TickCount64)?NativeResultAccess.State.Describe():RewardResultState.Unavailable;
+    private static string Summary=>NativeResultAccess.State.Active(Environment.TickCount64)?NativeResultAccess.State.Describe():RewardResultState.Unavailable;
     public static void BeginMission()
     {
-        battleGains.Clear();battleEnded=false;inventorySummary=miniRepeat="";lastResultSeen=0;resultSeen=false;
+        battleGains.Clear();battleEnded=false;miniRepeat="";lastResultSeen=0;resultSeen=false;
         NativeResultAccess.Reset();battleChangedAt=Environment.TickCount64;
     }
     public static void EndMission(){battleEnded=true;battleChangedAt=Environment.TickCount64;}
@@ -74,20 +73,8 @@ internal static class RewardAccess
         if(P2TreasureAccess.IsActive||CommonUi.CommandWindowActive)return false;
         // Let simultaneous grants settle before producing one utterance.
         if(gains.Values.Any(g=>now-g.at<500))return false;
-        string battleText="";
-        if(battleEnded&&battleGains.Count>0&&now-battleChangedAt>=700){
-            var rewards=new List<string>();var entries=new List<object>();bool waiting=false;
-            foreach(var entry in battleGains){
-                var key=entry.Key;var gain=entry.Value;
-                string? name=UnitNames.FetchLocalized(key.game,gain.nameId);
-                if(name==null){waiting=true;continue;}
-                rewards.Add(name+"，"+gain.count+I18n.T("ui.c61cc5c219ba"," 個"));entries.Add(new{game=key.game,itemId=key.id,name,count=gain.count});
-            }
-            if(!waiting||now-battleChangedAt>=5000){
-                if(rewards.Count>0){inventorySummary=battleText=I18n.T("ui.aac9c0e4dc1b","戰鬥結算，獲得物品：")+string.Join("；",rewards);Monitor.Record("inventory-result-reward-speech",new{items=entries.ToArray(),countsKnown=true,unresolved=battleGains.Count-rewards.Count});}
-                battleGains.Clear();battleEnded=false;
-            }
-        }
+        // Inventory mutation remains diagnostic evidence, never a replacement for on-screen results.
+        if(battleEnded&&now-battleChangedAt>=700){battleGains.Clear();battleEnded=false;}
         bool nativeActive=NativeResultAccess.State.Active(now);
         // Retain visible-panel detection for F3/F4 if a native reader is unavailable.
         // Never infer loot by collecting unrelated or recycled TMP labels.
@@ -96,26 +83,23 @@ internal static class RewardAccess
         if(nativeActive||visible) {
             lastResultSeen=now;resultSeen=true;
             string displayText=NativeResultAccess.State.Take(now);
-            if(battleText.Length>0){miniRepeat=battleText;CommonUi.QueueSelection(battleText,interrupt:false);}
-            else if(displayText.Length>0&&inventorySummary.Length==0){
+            if(displayText.Length>0){
                 Speech.Speak(displayText,interrupt:false);
                 Monitor.Record("native-result-reward-speech",new{items=NativeResultAccess.State.Names.ToArray(),countsKnown=false});
             }
+            string guide=NativeResultGuideAccess.Take();if(guide.Length>0)Speech.Speak(guide,interrupt:false);
             return true;
         }
         // Outside missions, wait for a batch of grants without hiding an active result.
         if(gains.Values.Any(g=>now-g.at<500))return false;
-        var announcements=new List<string>();
         foreach(var id in gains.Keys.ToArray()) {
             var gain=gains[id];if(now-gain.at<500)continue;
             string? name=UnitNames.FetchLocalized(id.game,gain.nameId);
             if(name==null && now-gain.at<5000)continue;
             gains.Remove(id);
             if(name==null){Monitor.Record("reward-name-missing",new{itemId=id,gain.nameId,gain.count});continue;}
-            announcements.Add(name+"，"+gain.count+I18n.T("ui.c61cc5c219ba"," 個"));
-            Monitor.Record("minigame-reward-speech",new{game=id.game,itemId=id.id,name,count=gain.count,source="inventory-add-outside-mission"});
+            Monitor.Record("inventory-grant-observed",new{game=id.game,itemId=id.id,name,count=gain.count,source="inventory-add-outside-mission",spoken=false,reason="native visible dialogue owns reward wording"});
         }
-        if(announcements.Count>0||battleText.Length>0) {miniRepeat=string.Join("。",new[]{battleText,announcements.Count>0?I18n.T("ui.3bdb812d7a8a","獲得物品，")+string.Join("；",announcements):""}.Where(s=>s.Length>0));CommonUi.QueueSelection(miniRepeat,interrupt:false);}
         return false;
     }
 }

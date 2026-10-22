@@ -7,7 +7,7 @@ Check(!state.Describe().Contains("正在讀取"),"missing data does not claim on
 Check(state.Take(100)=="","no automatic placeholder");
 state.Observe("P1:1",new[]{"合金弓","一般的骨頭","合金弓"},false,100);
 Check(state.Active(100),"native result active");
-Check(state.Names.Count==2,"duplicate labels do not become duplicate names");
+Check(state.Names.Count==3,"distinct native rows are preserved, not collapsed into inferred quantities");
 Check(state.Take(400)=="","opening animation is not treated as controllable");
 state.Observe("P1:1",new[]{"合金弓","一般的骨頭","合金弓"},true,450);
 string first=state.Take(450);
@@ -32,10 +32,25 @@ Check(state.Names.Count==0&&state.Take(2300)=="","empty snapshot cannot reuse pr
 foreach(var (language,names) in new[]{("zh-TW",new[]{"一般的骨頭","尖尖的牙"}),("zh-CN",new[]{"一般的骨头","尖尖的牙"}),("en",new[]{"Stone","Sharp Fang"}),("ja",new[]{"石ころ","とがった牙"})}){
  I18n.SetLanguage(language);state.Reset();state.Observe(language,names,true,100);state.Observe(language,names,true,400);
  string text=state.Take(400);Check(text.Contains(names[0])&&text.Contains(names[1]),"game-localized names survive "+language);
- Check(text==I18n.T("ui.aac9c0e4dc1b","")+string.Join("、",names),"mod header translated without translating loot "+language);
+ Check(text==string.Join("。",names),"native rows have no invented mod heading "+language);
  Check(RewardResultState.Unavailable==I18n.T("reward.unavailable","")&&RewardResultState.Unavailable.Length>0,"missing-data state translated "+language);
  Check(state.Take(450)=="","repeat frames do not chatter "+language);
 }
 I18n.SetLanguage("en");state.Reset();state.Observe("P2:3",new[]{"一般的骨頭"},true,100);state.Observe("P2:3",new[]{"一般的骨頭"},true,400);
 Check(state.Take(400).Contains("一般的骨頭"),"mod language differs from game; native item names unchanged");
+state.Reset();
+var full=new[]{"過關時間","00:02:44","響聲","96","撿到的頭盔","0","喪失的頭盔","0","戰利品","合金槍","合金斧"};
+state.Observe("recorded-P1-result",full,true,100);state.Observe("recorded-P1-result",full,true,400);
+Check(state.Take(400)==string.Join("。",full),"recorded result keeps time, currency, repeated zero and native heading in order");
+state.Reset();
+var grouped=new[]{"響聲","0","喪失的頭盔","0","戰利品","摩吉吉","摩吉吉","摩吉吉","卡契古","卡契古","卡契古","卡契古","卡契古"};
+state.Observe("actual-P1",grouped,true,100,Enumerable.Range(5,8));
+Check(state.Describe()=="響聲。0。喪失的頭盔。0。戰利品。摩吉吉，3。卡契古，5","group only native item rows, preserve other repeated fields");
+state.Observe("actual-P1",grouped,true,400,Enumerable.Range(5,8));
+Check(state.Take(400)==state.Describe(),"grouped result spoken once");
+Check(state.Take(450)=="","polls do not increase group count");
+state.Reset();state.Observe("P2",new[]{"Stone","Fang","Stone","Stone"},true,100,new[]{0,1,2,3});
+Check(state.Describe()=="Stone，3。Fang","non-adjacent duplicate item rows grouped in first appearance order");
+state.Observe("P2",new[]{"Stone","Stone"},true,500);
+Check(state.Describe()=="Stone。Stone","untyped identical text remains untouched");
 Console.WriteLine($"{checks} reward state checks passed. Native hooks still need gameplay validation.");

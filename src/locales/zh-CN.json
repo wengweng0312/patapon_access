@@ -11,7 +11,7 @@
   "ui.0bb384d6a26c": "Page Up 键",
   "ui.0d8619aae051": "设定",
   "ui.0e8654b5022a": "滑鼠中键",
-  "ui.120d60cc3c42": "PATAPON 一代",
+  "ui.120d60cc3c42": "PATAPON 1",
   "ui.13c12b064b63": "下",
   "ui.147ec6c37f3b": "右键",
   "ui.14ab1f2bce0a": "右",
@@ -262,7 +262,7 @@
   "ui.f9afcd60b0b0": "，按钮",
   "ui.fa1bde9842aa": "设定。上下选择项目，左右调整，Q、E 切换分页，{0} 确认，{1} 返回。F3 重读目前设定。",
   "ui.fab2a038b6d0": "，第 ",
-  "ui.fac22c2337e1": "PATAPON 二代",
+  "ui.fac22c2337e1": "PATAPON 2",
   "ui.fc497d3162e9": " 项。",
   "ui.fc7f0f8d88ad": "未解锁",
   "ui.fe2add6cf52b": "空白位置",
@@ -286,5 +286,9 @@
   "reward.unavailable": "战斗结算。目前没有可朗读的战利品数据。",
   "help.object-range-enter": "音效试听：可攻击场景物件进入射程，两声木质上行。按 Enter 播放。",
   "help.object-range-leave": "音效试听：可攻击场景物件离开射程，两声木质下行。按 Enter 播放。",
-  "training.currency": "持有响声 {0}"
+  "training.currency": "持有响声 {0}",
+  "loadout.miracle": "奇迹",
+  "loadout.cooking": "料理",
+  "loadout.none": "未装备",
+  "treasure.cost": "开启所需数量 {0}"
 }

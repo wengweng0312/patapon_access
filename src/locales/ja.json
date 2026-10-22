@@ -11,7 +11,7 @@
   "ui.0bb384d6a26c": "Page Upキー",
   "ui.0d8619aae051": "設定",
   "ui.0e8654b5022a": "マウス中央ボタン",
-  "ui.120d60cc3c42": "パタポン1",
+  "ui.120d60cc3c42": "PATAPON 1",
   "ui.13c12b064b63": "下",
   "ui.147ec6c37f3b": "右キー",
   "ui.14ab1f2bce0a": "右",
@@ -262,7 +262,7 @@
   "ui.f9afcd60b0b0": "、ボタン",
   "ui.fa1bde9842aa": "設定。上下で項目選択、左右で調整、QとEでタブ切り替え、{0}で決定、{1}で戻ります。F3で現在の設定を再読み上げします。",
   "ui.fab2a038b6d0": "、項目 ",
-  "ui.fac22c2337e1": "パタポン2",
+  "ui.fac22c2337e1": "PATAPON 2",
   "ui.fc497d3162e9": "項目。",
   "ui.fc7f0f8d88ad": "未解放",
   "ui.fe2add6cf52b": "空き枠",
@@ -286,5 +286,9 @@
   "reward.unavailable": "戦闘結果。現在読み上げられる戦利品情報がありません。",
   "help.object-range-enter": "試聴：攻撃可能なオブジェクトが射程に入ると、木の音が2回上がります。Enterで再生。",
   "help.object-range-leave": "試聴：攻撃可能なオブジェクトが射程から出ると、木の音が2回下がります。Enterで再生。",
-  "training.currency": "所持チャリン {0}"
+  "training.currency": "所持チャリン {0}",
+  "loadout.miracle": "ミラクル",
+  "loadout.cooking": "料理",
+  "loadout.none": "未装備",
+  "treasure.cost": "開けるための必要数 {0}"
 }

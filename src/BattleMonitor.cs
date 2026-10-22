@@ -15,6 +15,11 @@ internal static class BattleMonitor
     public static void Install(bool value)
     {
         enabled=value;
+        var rushHarmony=new Harmony("org.patapon.access.rush-lifecycle");
+        foreach(string game in new[]{"P1S","P2S"}){
+            var type=typeof(LauncherMain).Assembly.GetType(game+".MainGame.Mission.MissionScene");
+            if(type!=null){Patch(rushHarmony,type,"initialize",nameof(MissionStart));Patch(rushHarmony,type,"terminate",nameof(MissionEnd));}
+        }
         var h=new Harmony("org.patapon.access.battle-observation");
         Patch(h,typeof(P2.MainGame.Mission.MissionScene),"initialize",nameof(MissionStart));
         Patch(h,typeof(P2.MainGame.Mission.MissionScene),"terminate",nameof(MissionEnd));

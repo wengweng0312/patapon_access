@@ -21,7 +21,7 @@ internal static class ObjectRangeCue
     public static void Reset(){state.Reset();pending=0;game="";}
     public static void Observe(string currentGame,int longCount,int shortCount)
     {
-        int max=currentGame=="P1"?3:currentGame=="P2"?4:-1;
+        int max=currentGame is "P1" or "P1S"?3:currentGame is "P2" or "P2S"?4:-1;
         if(longCount<0||longCount>max||shortCount<0||shortCount>max)return;
         long now=Environment.TickCount64;
         int change=state.Observe(longCount>0,now);if(change==0)return;

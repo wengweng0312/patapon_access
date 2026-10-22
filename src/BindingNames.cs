@@ -12,13 +12,10 @@ internal static class BindingNames
         var manager=UnityEngine.Object.FindObjectOfType<MultiPlatformInputManager>();
         if(!manager)return "";
         var candidates="Tab|Home|End|Page Up|Page Down|Enter|Escape|Space|Backspace|Delete|Insert|Left Arrow|Right Arrow|Up Arrow|Down Arrow|Backslash|\\|/|Left Shift|Right Shift|Left Ctrl|Right Ctrl|Left Alt|Right Alt".Split('|').Concat(Enumerable.Range('A',26).Select(i=>((char)i).ToString())).Concat(Enumerable.Range(0,10).Select(i=>i.ToString())).Concat(Enumerable.Range(1,12).Select(i=>"F"+i));
-        foreach(string candidate in candidates) {
-            string found=manager.GetKeyboardSpriteName(action,candidate);
-            if(found!=sprite)continue;
-            string name=candidate=="\\"?I18n.T("ui.dea3a5633154","反斜線鍵"):candidate+I18n.T("ui.ecb536912f61"," 鍵");
-            spriteKeys[sprite]=name;return name;
-        }
-        return "";
+        string candidate=KeySpriteLabel.Resolve(sprite,action,candidates,(nativeAction,key)=>manager.GetKeyboardSpriteName(nativeAction,key));
+        if(candidate.Length==0)return "";
+        string name=candidate=="\\"?I18n.T("ui.dea3a5633154","反斜線鍵"):candidate+I18n.T("ui.ecb536912f61"," 鍵");
+        spriteKeys[sprite]=name;return name;
     }
     public static List<string> Read(MultiPlatformInputManager.AllAction value)
     {

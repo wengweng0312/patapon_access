@@ -286,5 +286,9 @@
   "reward.unavailable": "Battle results. No readable loot details are currently available.",
   "help.object-range-enter": "Preview: attackable scenery enters range, two rising wooden tones. Press Enter.",
   "help.object-range-leave": "Preview: attackable scenery leaves range, two falling wooden tones. Press Enter.",
-  "training.currency": "Ka-ching owned: {0}"
+  "training.currency": "Ka-ching owned: {0}",
+  "loadout.miracle": "Miracle",
+  "loadout.cooking": "Meal",
+  "loadout.none": "Not equipped",
+  "treasure.cost": "Required to open: {0}"
 }

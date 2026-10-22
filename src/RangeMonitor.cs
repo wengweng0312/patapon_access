@@ -15,6 +15,11 @@ internal static class RangeMonitor
         enabled=logging||cue||objectCue;RangeCue.Enabled=cue;ObjectRangeCue.Initialize(objectCue);
         if(!enabled)return;
         var h=new Harmony("org.patapon.access.range");
+        foreach(string game in new[]{"P1S","P2S"})foreach(string method in new[]{"mainNormal","watchAlert"})try{
+            var type=typeof(LauncherMain).Assembly.GetType(game+".Game.Mission.WatchGameMarch");
+            h.Patch(type!.GetMethod(method),postfix:new HarmonyMethod(typeof(RangeMonitor).GetMethod(nameof(SampleRush),BindingFlags.NonPublic|BindingFlags.Static)));
+            Monitor.Record("range-hook-installed",new{game,method});
+        }catch(Exception e){Monitor.Record("range-hook-failed",new{game,method,error=e.Message});}
         Patch(h,"mainNormal",nameof(Sample));
         Patch(h,"watchAlert",nameof(Sample));
         foreach(var method in new[]{"getNumAttackSightLongEnemy","getNumAttackSightShortEnemy","getNumAttackSightLongGimmick","getNumAttackSightShortGimmick"})Patch(h,method,nameof(CountObserved));
@@ -38,6 +43,22 @@ internal static class RangeMonitor
         EnemyRangeGeometry.Begin();DirectEnemySight.Begin();CartRange.Begin();CurrentStatus=I18n.T("ui.82af2da4b341","正在讀取射程");missionActive=true;nextSample=nextHeartbeat=0;samples=errors=0;last="";RangeCue.Reset();ObjectRangeCue.Reset();
     }
     public static void End(){EnemyRangeGeometry.End();DirectEnemySight.End();CartRange.End();CurrentStatus=I18n.T("ui.02e9ab48a558","目前不在戰鬥中");missionActive=false;RangeCue.Reset();ObjectRangeCue.Reset();}
+    private static void SampleRush(object __instance)
+    {
+        if(!enabled||!missionActive)return;
+        long now=Environment.TickCount64;if(now<nextSample)return;nextSample=now+100;
+        try{
+            var type=__instance.GetType();string game=type.Namespace!.Split('.')[0];
+            int Count(string name)=>Convert.ToInt32(type.GetMethod(name)!.Invoke(__instance,null));
+            int le=Count("getNumAttackSightLongEnemy"),se=Count("getNumAttackSightShortEnemy");
+            int lg=Count("getNumAttackSightLongGimmick"),sg=Count("getNumAttackSightShortGimmick");
+            int max=game=="P1S"?3:4;if(new[]{le,se,lg,sg}.Any(n=>n<0||n>max))return;
+            string signature=$"{game}:{le}:{se}:{lg}:{sg}";
+            if(signature!=last||now>=nextHeartbeat){Monitor.Record("range-state",new{game,longEnemySquads=le,shortEnemySquads=se,longGimmickSquads=lg,shortGimmickSquads=sg});last=signature;nextHeartbeat=now+1000;}
+            RangeCue.Observe(le>0,le,se,game+"LongEnemy");
+            ObjectRangeCue.Observe(game,lg,sg);
+        }catch(Exception e){if(now-lastError>5000){lastError=now;Monitor.Record("range-error",new{game="rush",error=e.Message});}}
+    }
     private static long nativeCountCalls;
     private static void CountObserved(MethodBase __originalMethod,int __result)
     {

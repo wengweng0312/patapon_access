@@ -22,7 +22,14 @@ internal static class DialogueText
     public static string Clean(string raw)
     {
         string text=System.Text.RegularExpressions.Regex.Replace(raw??"",@"&[A-Za-z][A-Za-z0-9.,+\-]*#","");
-        text=text.Replace('/', '\n');
+        // Slash is a native line separator, except inside a displayed numeric ratio.
+        string source=text;
+        text=System.Text.RegularExpressions.Regex.Replace(source,@"/",m=>{
+            int left=m.Index-1,right=m.Index+1;
+            while(left>=0&&char.IsWhiteSpace(source[left]))left--;
+            while(right<source.Length&&char.IsWhiteSpace(source[right]))right++;
+            return left>=0&&right<source.Length&&char.IsDigit(source[left])&&char.IsDigit(source[right])?"/":"\n";
+        });
         return System.Text.RegularExpressions.Regex.Replace(System.Text.RegularExpressions.Regex.Replace(text,@"<[^>]*>"," "),@"\s+"," ").Trim();
     }
 }

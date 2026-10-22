@@ -7,6 +7,5 @@
   <Reference Include="0Harmony"><HintPath>$(GameDir)/BepInEx/core/0Harmony.dll</HintPath><Private>false</Private></Reference>
   <Reference Include="$(GameDir)/BepInEx/interop/*.dll"><Private>false</Private></Reference>
  </ItemGroup>
- <ItemGroup><EmbeddedResource Include="locales/*.json" /></ItemGroup>
+ <ItemGroup><EmbeddedResource Include="locales/*.json" /><EmbeddedResource Include="game-text/opening-contracts.json" LogicalName="game-text.opening-contracts.json" /><EmbeddedResource Include="game-text/boss-rush-manual.json" LogicalName="game-text.boss-rush-manual.json" /><EmbeddedResource Include="game-text/image-transcriptions.json" LogicalName="game-text.image-transcriptions.json" /></ItemGroup>
 </Project>
-

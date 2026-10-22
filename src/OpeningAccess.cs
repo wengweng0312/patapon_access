@@ -11,26 +11,24 @@ internal static class OpeningAccess
     private static bool wasSigning,tabDown,announced;
     private static string zone="";
     public static bool IsActive=>Environment.TickCount64-seen<500;
-    private const string Contract="致以世界盡頭為目標之者。只要汝，手中持有此太鼓，就必須做為 PATAPON 的神，為其繁盛鞠躬盡瘁。即便，感受律動之力不足，也絕對不要放棄，學習神之技。無止盡的努力的成果，必定會閃耀光芒的盛世造訪人間。汝，要是同意此約定的話，就做為 PATAPON 之神，拿起此太鼓吧。";
-    private const string ContractP2="神明的契約書。吾以抵達世界的盡頭為目標，立誓成為 PATAPON 的神明。即便對節奏沒有自信，或是在途中想要半途而廢時，亦會絕對堅持到底。吾保證遵守此契約，化身 PATAPON 的神明，手執勇氣之太鼓。特此立誓。";
     private static string currentContract="";
     private static long nextContractError;
     // Contract prose belongs to the game locale, never to the module catalog.
     private static string ReadContract(string game)
     {
         try {
+            int? language=null;string? live=null;
             if(game=="P2") {
                 var common=P2.LaboCommon.pLaboCommonInstance_g;
+                if(common!=null)language=(int)common.getLanguageDataType();
                 var messages=common?.getLocalizeDataItem?.imageData?.titleString?.messages;
-                if(messages!=null&&messages.Length>5&&!string.IsNullOrWhiteSpace(messages[5]))
-                    return DialogueText.Clean(messages[5])+"。";
+                if(messages!=null&&messages.Length>5)live=messages[5];
             } else {
                 var common=P1.LaboCommon.pLaboCommonInstance_g;
-                // P1 renders the contract as an image. Our existing transcription
-                // is valid only for the game's Traditional Chinese setting.
-                if(common!=null&&common.getLanguageDataType()==P1.Localize.LanguageType.LanguageType_tc)
-                    return Contract;
+                if(common!=null)language=(int)common.getLanguageDataType();
             }
+            string? raw=OpeningContractText.Resolve(game,language,live);
+            if(!string.IsNullOrWhiteSpace(raw))return DialogueText.Clean(raw)+"。";
         } catch(Exception e) {
             if(Environment.TickCount64>=nextContractError) {
                 nextContractError=Environment.TickCount64+30000;
@@ -93,7 +91,7 @@ internal static class OpeningAccess
             if(first||moved||(current!=zone&&now>=nextGuide)) {
                 zone=current;nextGuide=now+600;announced=true;
                 CommonUi.QueueSelection(first?I18n.T("ui.6b4efca19b81","PATAPON 開場誓約。")+contract+Instructions+current:current,interrupt:!first);
-                Monitor.Record("opening-pen-state",new{game,x=p.x,y=p.y,inside,text=current,first});
+                Monitor.Record("opening-pen-state",new{game,x=p.x,y=p.y,inside,text=current,first,contract=first?contract:null});
             }
         }catch(Exception e){Reader.Log.LogWarning("Opening feather observation: "+e.Message);}
     }

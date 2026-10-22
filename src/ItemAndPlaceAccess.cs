@@ -5,9 +5,11 @@ namespace PataponAccess;
 
 internal static class ItemAndPlaceAccess
 {
-    private static string lastItem="",lastPlace="";
+    private static string lastItem="",lastPlace="",equipmentRepeat="",itemRepeat="";
+    public static string EquipmentRepeatText=>Environment.TickCount64-equipmentSeen<500?equipmentRepeat:"";
+    public static string ItemRepeatText=>ItemActive?itemRepeat:"";
     private static readonly ItemSelectionReadout p1ItemReadout=new();
-    private static string lastEquipment="";
+    private static readonly ItemSelectionReadout equipmentReadout=new();
     private static long campSeen;
     public static bool CampActive=>Environment.TickCount64-campSeen<500;
     public static string CurrentItemName {get;private set;}="";
@@ -37,7 +39,8 @@ internal static class ItemAndPlaceAccess
     {
         try {
             if(__instance is P2.Bases.Organization.ItemSelectWindow)return; // P2 ItemMenu owns the accessor and selection mode.
-            if(Call(__instance,"isActive") is not true)return;
+            string ownerKey=__instance.GetType().FullName+":"+Get(__instance,"Pointer");
+            if(Call(__instance,"isActive") is not true){equipmentReadout.Close(ownerKey);return;}
             int index=Convert.ToInt32(Get(__instance,"selectIndex_"));
             var ids=Get(__instance,"belongingItemIdArray_");
             if(ids==null || index<0 || index>=Convert.ToInt32(Get(ids,"Count")))return;
@@ -48,18 +51,20 @@ internal static class ItemAndPlaceAccess
             var param=items==null?null:Call(items,"getItemParam",id);
             if(param==null)return;
             string ns=__instance.GetType().Namespace!.Split('.')[0];
-            string? name=UnitNames.Localized(ns,Get(param,"nameId"));
+            string? name=UnitNames.FetchLocalized(ns,Convert.ToUInt32(Get(param,"nameId")));
             if(string.IsNullOrWhiteSpace(name))return;
-            string? explain=UnitNames.Localized(ns,Get(param,"explainId"));
+            string? explain=UnitNames.FetchLocalized(ns,Convert.ToUInt32(Get(param,"explainId")));
             int count=Convert.ToInt32(Call(items!,"getItemBelongNum",id));
             bool equipped=Convert.ToInt32(Get(__instance,"equipItemId_"))==id;
-            string text=I18n.T("ui.24123281fc93","裝備選擇，")+name+I18n.T("ui.39502a5111bf","，持有 ")+count+I18n.T("ui.421f465daee8"," 件")+(equipped?I18n.T("ui.704043172b99","，目前裝備"):"")+(string.IsNullOrWhiteSpace(explain)?"":"。"+explain);
+            string content=name+I18n.T("ui.39502a5111bf","，持有 ")+count+I18n.T("ui.421f465daee8"," 件")+(equipped?I18n.T("ui.704043172b99","，目前裝備"):"")+(string.IsNullOrWhiteSpace(explain)?"":"。"+explain);
+            equipmentRepeat=content;
             long now=Environment.TickCount64;
-            bool changed=now-equipmentSeen>500 || text!=lastEquipment;
+            if(now-equipmentSeen>500)equipmentReadout.Close(ownerKey);
+            string? text=equipmentReadout.Observe(ownerKey,I18n.T("ui.f23b8e657c9a","裝備選擇"),content);
             equipmentSeen=now;
-            if(!changed)return;
-            lastEquipment=text;CommonUi.QueueSelection(text);
-            Monitor.Record("selected-equipment",new{ns,index,id,name,count,equipped,explain});
+            if(text==null)return;
+            CommonUi.QueueSelection(text);
+            Monitor.Record("selected-equipment",new{ns,index,id,name,count,equipped,explain,text,introPolicy="once-per-window-visit"});
         }catch(Exception e){Reader.Log.LogWarning("Equipment selection: "+e.Message);}
     }
     private static void Item(object __instance)
@@ -90,6 +95,7 @@ internal static class ItemAndPlaceAccess
             string type=owner.GetType().Name;
             string context=type.Contains("Stare")?I18n.T("ui.2113227fb3b5","倉庫"):I18n.T("ui.550259ba7104","道具選擇");
             string content=name+count+(string.IsNullOrEmpty(explain)?"":"。"+explain);
+            itemRepeat=content;
             string text=context+"，"+content;
             if(ns=="P1"&&!type.Contains("Stare")){
                 itemSeen=Environment.TickCount64;
@@ -126,9 +132,11 @@ internal static class ItemAndPlaceAccess
             if(key==lastPlace) return;
             lastPlace=key;
             Monitor.Record("camp-place",new{id,name});
-            string lower=name.ToLowerInvariant();
-            if(lower.Contains("lifetree") || lower.Contains("life_tree")) name=I18n.T("ui.34a8dff9014a","生命之樹");
-            else if(lower.Contains("warehouse") || lower.Contains("souko") || lower.Contains("storage")) name=I18n.T("ui.2113227fb3b5","倉庫");
+            // Facility.getName is readable game data (e.g. 石碑/神殿/生命の樹),
+            // not necessarily an asset ID. Preserve its original wording.
+            if(System.Text.RegularExpressions.Regex.IsMatch(name,@"^(?:unit[0-9_]+|OEP_[0-9A-Z_]+)$")){
+                Monitor.Record("camp-place-label-unavailable",new{id,internalName=name});return;
+            }
             CommonUi.QueueSelection(I18n.T("ui.023de84af352","目前選擇，")+name);
         } catch(Exception e) {Reader.Log.LogWarning("Camp place: "+e.Message);}
     }

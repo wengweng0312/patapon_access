@@ -14,8 +14,11 @@ internal static class CommonUi
     private static long commandWindowSeen;
     public static bool CommandWindowActive=>Environment.TickCount64-commandWindowSeen<350;
     private static float next;
-    private static string repeatText="";
+    private static string repeatText="",windowRepeat="";
+    public static string WindowRepeatText=>CommandWindowActive?windowRepeat:"";
     private static readonly CommandDialogSpeech dialogSpeech=new();
+    private static readonly ItemSelectionReadout trainingReadout=new();
+    private static string trainingOwner="";
     private static bool pendingDialog;
     public static string RepeatText=>Environment.TickCount64-focusSeen<800?repeatText:"";
     public static void Install()
@@ -75,6 +78,22 @@ internal static class CommonUi
             string help=Chars(Get(item,"help"));
             string title=Chars(Call(__instance,"getName"));
             string ns=__instance.GetType().Namespace?.Split('.')[0]??"";
+            if(ns=="P1") {
+                var rowCallback=Get(item,"callback");
+                var rowTarget=rowCallback==null?null:Get(rowCallback,"Target") as Il2CppSystem.Object;
+                var slot=rowTarget?.TryCast<P1.Bases.Camp.SelectItem.Behavior.ItemSlot>();
+                if(slot!=null){
+                    int itemId=slot.getItemId();
+                    var param=slot.itemTableAccessor_?.getItemParam(itemId);
+                    string? nativeName=param==null?null:UnitNames.FetchLocalized("P1",Convert.ToUInt32(param.nameId));
+                    if(!string.IsNullOrWhiteSpace(nativeName)){label=nativeName;help="";}
+                    else {Monitor.Record("birth-slot-name-unavailable",new{index,itemId});return;}
+                }else if(rowTarget?.TryCast<P1.Bases.Camp.SelectItem.Behavior.BirthButton>()!=null){
+                    // Same localization category/index as BirthButton.renderSelectItem.
+                    label=DialogueText.Clean(P1.LaboCommon.getInstance()?.getLocalizeManager()?.getStringFromIndex(2,0x2002b)??"");help="";
+                    if(label.Length==0)return;
+                }
+            }
             if(ns is "P2" or "P2S" && P2EvolutionAccess.ObserveWindow(title,label,((Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase)__instance).Pointer)){commandWindowSeen=priorWindowSeen;return;}
             string body="";
             var optionIndices=new List<int>();
@@ -92,11 +111,12 @@ internal static class CommonUi
                 }
                 body=string.Join("。",content.Distinct());
             }
-            if(title=="英雄的記憶") title=I18n.T("ui.20c967cdc8ef","生命之樹，英雄的記憶");
             if(label=="%" && help.StartsWith("unit")) {
                 string? unitName=UnitNames.Resolve(__instance.GetType().Namespace?.Split('.')[0]??"P1",help);
                 if(unitName!=null) {label=unitName;help="";}
+                else {Monitor.Record("unit-label-unavailable",new{ns,model=help});return;}
             }
+            bool trainingRow=false;string trainingBalance="";
             string text=string.Join("，",new[]{title,label,help}.Where(s=>s.Length>0).Distinct());
             if(label.Length==0) return;
             // Only native life-tree behaviours own this balance; do not infer it from text or cost_.
@@ -105,7 +125,8 @@ internal static class CommonUi
                 var target=callback==null?null:Get(callback,"Target") as Il2CppSystem.Object;
                 if(target?.TryCast<P1.Bases.Camp.SelectItem.Behavior.EnagyValueDisp>()!=null) {
                     var data=P1.LaboCommon.getInstance()?.getLaboGlobalData()?.basesData;
-                    if(data!=null) text+="，"+I18n.T("training.currency","持有響聲 {0}",data.energy);
+                    trainingRow=true;
+                    if(data!=null){trainingBalance=I18n.T("training.currency","持有響聲 {0}",data.energy);text+="，"+trainingBalance;}
                 }
             }
             long now=Environment.TickCount64;
@@ -120,9 +141,18 @@ internal static class CommonUi
                 entered=dialogSpeech.Observe(owner,title,prompt,selected,string.Join("|",commandLabels),now);
                 repeatText=dialogSpeech.Repeat;
             }else {dialogSpeech.Reset();repeatText=text+ordinal;}
+            windowRepeat=repeatText;
             string focusKey=owner+"|"+text+"|"+body;
             if(focusKey!=lastFocus || now-focusSeen>1500 || entered) {
                 lastFocus=focusKey;pending=repeatText;pendingDialog=isDialog;readyAt=now+140;
+                if(trainingRow&&!isDialog){
+                    string visit=owner+"|"+title;
+                    if(now-focusSeen>1500)trainingReadout.Close(visit);
+                    trainingOwner=visit;
+                    string header=string.Join("，",new[]{title,trainingBalance}.Where(t=>t.Length>0));
+                    string content=string.Join("，",new[]{label,help}.Where(t=>t.Length>0&&t!="%").Distinct());
+                    pending=trainingReadout.Observe(visit,header,content)??"";
+                }else if(trainingOwner.Length>0){trainingReadout.Close(trainingOwner);trainingOwner="";}
                 Monitor.Record("common-selection",new{type=__instance.GetType().FullName,index,title,body,label,help,isDialog,confirmation,text});
             }
             pendingVariables=unresolvedVariables;

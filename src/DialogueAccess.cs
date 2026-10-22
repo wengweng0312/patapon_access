@@ -15,12 +15,9 @@ internal static class DialogueAccess
         "今晚就 飲酒作樂 到天明吧♪", "我們去瞧瞧 世界的盡頭吧！"
     };
     private static readonly object gate=new();
-    private static string pending="";
-    private static string pendingTemplate="";
+    private static readonly DialogueQueue queue=new();
     private static string previous="";
-    private static string pendingHint="";
     private static long previousAt;
-    private static long readyAt;
     public static void Install()
     {
         var h=new Harmony("org.patapon.access.dialogue");
@@ -71,7 +68,8 @@ internal static class DialogueAccess
                         idleSpoken[text]=now;
                     }
                     if(text==previous && now-previousAt<800) continue;
-                    previous=text;previousAt=now;pending=text;pendingTemplate=DialogueText.HasVariableToken(raw)?raw:"";pendingHint=protectedHint?hintKey:"";readyAt=now+60;
+                    previous=text;previousAt=now;
+                    queue.Add(text,DialogueText.HasVariableToken(raw)?raw:"",protectedHint?hintKey:"",__originalMethod.DeclaringType+"."+__originalMethod.Name,now);
                 }
                 if(protectedHint)Monitor.Record("camp-hint-preserved",new{key=hintKey,text,template=raw});
                 Monitor.Record("dialogue-queued",new{source=__originalMethod.DeclaringType+"."+__originalMethod.Name,text,ambientDepth=AmbientDialogue.Depth,appealDepth=AmbientDialogue.AppealDepth,speaker=BattleChants.Source});
@@ -81,28 +79,32 @@ internal static class DialogueAccess
     public static string Take()
     {
         lock(gate) {
-            if(Environment.TickCount64<readyAt) return "";
-            string text=pending;
-            if(pendingTemplate.Length>0) {
+            long now=Environment.TickCount64;
+            var entry=queue.Peek(now);if(entry==null)return "";
+            string text=entry.Text;
+            if(entry.Template.Length>0) {
                 foreach(var item in UnityEngine.Object.FindObjectsOfType<TMPro.TMP_Text>()) {
                     if(!item||!item.isActiveAndEnabled||item.color.a<0.05f||item.maxVisibleCharacters==0)continue;
-                    string resolved=DialogueText.ResolveTemplate(pendingTemplate,item.text);
+                    string resolved=DialogueText.ResolveTemplate(entry.Template,item.text);
                     if(resolved.Length==0)continue;
-                    text=resolved;Monitor.Record("dialogue-template-resolved",new{text,template=pendingTemplate,path=Monitor.PathOf(item.transform),hasLevel=DialogueText.HasLevelToken(pendingTemplate)});pendingTemplate="";break;
+                    text=resolved;Monitor.Record("dialogue-template-resolved",new{text,template=entry.Template,path=Monitor.PathOf(item.transform),hasLevel=DialogueText.HasLevelToken(entry.Template)});entry.Template="";break;
                 }
-                if(pendingTemplate.Length>0&&Environment.TickCount64-previousAt<(DialogueText.HasLevelToken(pendingTemplate)?DialogueText.LevelResolutionTimeoutMs:DialogueText.NameResolutionTimeoutMs)){readyAt=Environment.TickCount64+50;return "";}
-                if(pendingTemplate.Length>0){
-                    Monitor.Record("dialogue-template-unresolved",new{text,template=pendingTemplate,reason="rendered-match-not-found-before-timeout"});
-                    if(DialogueText.HasLevelToken(pendingTemplate))text=System.Text.RegularExpressions.Regex.Replace(text,@"Lv\.\s*",I18n.T("ui.16b0234b5343","等級未取得 "));pendingTemplate="";
+                if(entry.Template.Length>0&&now-entry.CapturedAt<(DialogueText.HasLevelToken(entry.Template)?DialogueText.LevelResolutionTimeoutMs:DialogueText.NameResolutionTimeoutMs)){entry.ReadyAt=now+50;return "";}
+                if(entry.Template.Length>0){
+                    Monitor.Record("dialogue-template-unresolved",new{text,template=entry.Template,reason="rendered-match-not-found-before-timeout"});
+                    if(DialogueText.HasLevelToken(entry.Template))text=System.Text.RegularExpressions.Regex.Replace(text,@"Lv\.\s*",I18n.T("ui.16b0234b5343","等級未取得 "));entry.Template="";
                 }
             }
-            pending="";
-            // Do not read old messages when returning from another application.
-            if(Environment.TickCount64-previousAt>=2000){pendingHint="";return "";}
-            CampHintAccess.Offer(pendingHint,text);pendingHint="";return text;
+            queue.Complete(entry);
+            CampHintAccess.Offer(entry.Hint,text);
+            Monitor.Record("dialogue-dequeued",new{text,source=entry.Source,waitMs=now-entry.CapturedAt,remaining=queue.Count});
+            return text;
         }
     }
-    public static void Clear() {lock(gate){pending="";pendingTemplate="";pendingHint="";}}
+    public static void Clear(string reason="existing-context-clear")
+    {
+        lock(gate){int count=queue.Clear();if(count>0)Monitor.Record("dialogue-queue-cleared",new{reason,count});}
+    }
 }
 
 internal static class AmbientDialogue

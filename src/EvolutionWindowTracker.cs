@@ -19,8 +19,8 @@ internal sealed class EvolutionWindowTracker
             if(descriptions.TryGetValue(name,out var d)&&now-d.at<1000){
                 var current=level.Match(d.title);
                 int lv=current.Success&&int.TryParse(current.Groups[1].Value,out int number)?number:-1;
-                text=EvolutionText.Build(d.title+"。"+d.body,I18n.T("ui.cfcacbe62f14","升級條件。")+body,lv);
-            }else text=I18n.T("ui.5f0175f2a38d","進化地圖。升級條件。")+EvolutionText.Requirements(body);
+                text=EvolutionText.Build(d.title+"。"+d.body,title+"。"+body,lv);
+            }else text=title+"。"+EvolutionText.Requirements(body);
             if(!reopened&&text==previous)return(true,"");
             previous=text;return(true,text);
         }

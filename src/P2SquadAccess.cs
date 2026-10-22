@@ -41,8 +41,8 @@ internal static class P2SquadAccess
             int missions=model.missionCountList_!=null&&index<model.missionCountList_.Count?(int)model.missionCountList_[index]:0;
             var values=SquadScreenValues.Read();
             // This selector shows missions, not a Reborn counter. Do not invent one.
-            string text=name+I18n.T("ui.f92b8a929537","。第 ")+(index+1)+I18n.T("ui.b850d8d5860c"," 項，共 ")+options.Count+I18n.T("ui.a6c180409417"," 項。任務次數 ")+missions;
-            for(int i=0;i<values.Length;i++)if(!string.IsNullOrWhiteSpace(values[i]))text+="。"+SquadScreenValues.Labels[i]+" "+values[i];
+            string text=string.Join("。",new[]{name}.Concat(SquadScreenValues.Headers));
+            for(int i=0;i<values.Length;i++)if(!string.IsNullOrWhiteSpace(values[i])&&!string.IsNullOrWhiteSpace(SquadScreenValues.Labels[i]))text+="。"+SquadScreenValues.Labels[i]+" "+values[i];
             if(values.Any(string.IsNullOrWhiteSpace))text+=I18n.T("ui.3078a2e6ac92","。部分能力數值未取得");
             StructuredUi.PublishSquad(text);
             string key=chara+":"+index+":"+text;
@@ -62,8 +62,8 @@ internal static class P2SquadAccess
             else{var param=squad.getParam();name=param==null?null:UnitNames.FetchLocalized("P2",LocalizeIds.Unit(unchecked((uint)param.charNameId)));}
             if(string.IsNullOrWhiteSpace(name))name=I18n.T("ui.d5ce891d09e6","兵種名稱未取得");
             var values=SquadScreenValues.Read();
-            string text=name+I18n.T("ui.f2c10c6eb978","。任務次數 ")+squad.getMissionCount();
-            for(int i=0;i<values.Length;i++)if(!string.IsNullOrWhiteSpace(values[i]))text+="。"+SquadScreenValues.Labels[i]+" "+values[i];
+            string text=string.Join("。",new[]{name}.Concat(SquadScreenValues.Headers));
+            for(int i=0;i<values.Length;i++)if(!string.IsNullOrWhiteSpace(values[i])&&!string.IsNullOrWhiteSpace(SquadScreenValues.Labels[i]))text+="。"+SquadScreenValues.Labels[i]+" "+values[i];
             if(values.Any(string.IsNullOrWhiteSpace))text+=I18n.T("ui.3078a2e6ac92","。部分能力數值未取得");
             StructuredUi.PublishSquad(text,"preparation");
             string key="status:"+model.selectLineIndex_+":"+text;

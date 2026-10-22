@@ -6,6 +6,7 @@ namespace PataponAccess;
 internal static class P2CampNavigation
 {
     private static string treeKey="",heroKey="",menuKey="";
+    private static readonly ItemSelectionReadout managedEquipmentIntro=new(),normalEquipmentIntro=new();
     private static long treeSeen,heroSeen,menuSeen,lastError;
     private static long normalMenuSeen;
     private static long unitSeen;
@@ -118,7 +119,7 @@ internal static class P2CampNavigation
     private static void Menu(P2.Bases.Organization.Managed.ItemMenu __instance)
     {
         try {
-            var menu=__instance;if(!menu.isActive_)return;
+            var menu=__instance;if(!menu.isActive_){managedEquipmentIntro.Close("managed:"+menu.Pointer);menuSeen=0;return;}
             var behavior=menu.currentSelectBehavior_;
             bool job=behavior?.TryCast<P2.Bases.Organization.Managed.UnitTypeSelectBehavior>()!=null;
             bool rare=behavior?.TryCast<P2.Bases.Organization.Managed.ClassSelectBehavior>()!=null;
@@ -135,7 +136,13 @@ internal static class P2CampNavigation
             int? count=job||rare?null:menu.itemOperator_!.getItemBelongNum(id);
             string text=P2NavigationText.Item(context,name,index,ids.Count,count,window.equipItemId_==id,explain);
             bool changed=text!=menuKey||reopened;
-            if(!changed)return;menuKey=text;CommonUi.QueueSelection(text);
+            if(!changed)return;menuKey=text;
+            if(!job&&!rare){
+                string owner="managed:"+menu.Pointer;
+                if(reopened)managedEquipmentIntro.Close(owner);
+                text=managedEquipmentIntro.Observe(owner,context,text.Substring(context.Length+1))??text;
+            }else managedEquipmentIntro.Close("managed:"+menu.Pointer);
+            CommonUi.QueueSelection(text);
             selectionRepeat=text;
             Monitor.Record("p2-hero-type-selection",new{job,index,id,request=desc.request,text});
         }catch(Exception e){Error(e);}
@@ -174,7 +181,7 @@ internal static class P2CampNavigation
     private static void NormalMenu(P2.Bases.Organization.ItemMenu __instance)
     {
         try {
-            var menu=__instance;if(!menu.isActive_)return;
+            var menu=__instance;if(!menu.isActive_){normalEquipmentIntro.Close("normal:"+menu.Pointer);normalMenuSeen=0;return;}
             var window=menu.itemSelectWindow_;if(window==null||!window.isActive_)return;
             long now=Environment.TickCount64;bool reopened=now-normalMenuSeen>700;normalMenuSeen=now;
             bool rare=menu.currentSelectBehavior_?.TryCast<P2.Bases.Organization.ClassSelectBehavior>()!=null;
@@ -189,7 +196,16 @@ internal static class P2CampNavigation
             string? explain=UnitNames.FetchLocalized("P2",unchecked((uint)param.explainId));
             int? count=rare?null:items!.getItemBelongNum(id);
             string text=P2NavigationText.Item(context,name,index,ids.Count,count,window.equipItemId_==id,explain);
-            ReadMenu(text,index,context,reopened,ref normalMenuKey);
+            string signature=text;
+            if(signature==normalMenuKey&&!reopened)return;
+            normalMenuKey=signature;
+            if(!rare){
+                string owner="normal:"+menu.Pointer;
+                if(reopened)normalEquipmentIntro.Close(owner);
+                text=normalEquipmentIntro.Observe(owner,context,text.Substring(context.Length+1))??text;
+            }else normalEquipmentIntro.Close("normal:"+menu.Pointer);
+            selectionRepeat=text;CommonUi.QueueSelection(text);
+            Monitor.Record("p2-item-menu-selection",new{context,index,text});
         }catch(Exception e){Error(e);}
     }
 }

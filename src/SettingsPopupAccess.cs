@@ -7,7 +7,7 @@ internal static class SettingsPopupAccess
     private static bool active;
     private static readonly DialogSpeechTracker tracker=new();
     public static string RepeatText=>active?repeat:"";
-    private static string Text(TMP_Text? t)=>t&&t!.isActiveAndEnabled&&t.color.a>=0.05f&&t.maxVisibleCharacters!=0?Speech.Clean(t.text):"";
+    private static string Text(TMP_Text? t)=>VisibleUiText.Read(t);
     public static bool Scan()
     {
         foreach(var w in UnityEngine.Object.FindObjectsOfType<SettingWindowBase>()){

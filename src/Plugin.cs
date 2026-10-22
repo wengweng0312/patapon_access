@@ -1,4 +1,4 @@
-﻿using BepInEx;
+using BepInEx;
 using BepInEx.Unity.IL2CPP;
 using BepInEx.Logging;
 using Il2CppInterop.Runtime.Injection;
@@ -14,7 +14,7 @@ namespace PataponAccess;
 [BepInPlugin("org.patapon.access.start", "Patapon Start Screen Access", Plugin.ModVersion)]
 public class Plugin : BasePlugin
 {
-    public const string ModVersion="0.6.69";
+    public const string ModVersion="0.6.70";
     private Reader? reader;
     public override void Load()
     {
@@ -41,11 +41,15 @@ public class Plugin : BasePlugin
         OpeningAccess.Install();
         NameInputAccess.Install();
         RewardAccess.Install();
+        NativeTipsAccess.Install();
+        NativeResultGuideAccess.Install();
         EnemyRangeGeometry.Install();
         bool bossAttackEnabled=Config.Bind("Audio","BossAttackCue",true,"Experimental P1 boss script preparation cue with verified startup fallbacks.").Value;
         BossAttackCue.Install(bossAttackEnabled);
+        RushP1BossAttackCue.Install(bossAttackEnabled);
         Monitor.Record("audit-settings",new{bossAttackCue=bossAttackEnabled,quietCampChatter=DialogueAccess.QuietCampChatter,readBattleChants=BattleChants.Enabled});
         P2BossAccess.Install();
+        RushP2BossAccess.Install();
         CannonWarning.InstallTrace(diagnostics);
         SceneMechanismLogger.Install(diagnostics);
         DrumPuzzleAccess.Install();
@@ -128,7 +132,8 @@ public class Reader : MonoBehaviour
     private string context = "";
     private LauncherMain? launcher;
     private bool firstUpdate;
-    private string titleFocus="";
+    private string titleFocus="",firstStartImage="";
+    private long firstStartSeen;
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int key);
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint pid);
@@ -147,12 +152,12 @@ public class Reader : MonoBehaviour
             for(int i=0;i<8;i++) {
                 bool down=(GetAsyncKeyState(0x70+i)&0x8000)!=0;
                 if(down && !keyDown[i]) {
-                    if(i==0){pending="";DialogueAccess.Clear();CommonUi.Clear();ModuleHelp.Toggle();keyDown[i]=down;continue;}
+                    if(i==0){pending="";DialogueAccess.Clear("help-open");CommonUi.Clear();ModuleHelp.Toggle();keyDown[i]=down;continue;}
                     else if(i==1){ContextGuide.Speak();keyDown[i]=down;continue;}
                     else if(ModuleHelp.Active){ModuleHelp.Handle(i);keyDown[i]=down;continue;}
-                    if(!ModuleHelp.Active && i==2) Speech.Speak(BalloonChoiceAccess.RepeatText.Length>0?BalloonChoiceAccess.RepeatText:SettingsPopupAccess.RepeatText.Length>0?SettingsPopupAccess.RepeatText:DrumPuzzleAccess.RepeatText.Length>0?DrumPuzzleAccess.RepeatText:P2CampNavigation.RepeatText.Length>0?P2CampNavigation.RepeatText:P2EvolutionAccess.RepeatText.Length>0?P2EvolutionAccess.RepeatText:P2TreasureAccess.RepeatText.Length>0&&!CommonUi.CommandWindowActive?P2TreasureAccess.RepeatText:StructuredUi.RepeatText.Length>0?StructuredUi.RepeatText:RewardAccess.IsResultActive?RewardAccess.RepeatText:NameInputAccess.IsActive?NameInputAccess.RepeatText:OpeningAccess.IsActive?OpeningAccess.RepeatText:CommonUi.RepeatText.Length>0?CommonUi.RepeatText:string.IsNullOrEmpty(focusText)?Speech.Last:focusText);
+                    if(!ModuleHelp.Active && i==2) Speech.Speak(NativeRushScreenAccess.RepeatText.Length>0?NativeRushScreenAccess.RepeatText:BossRushDescriptionAccess.RepeatText.Length>0?BossRushDescriptionAccess.RepeatText:SettingsPopupAccess.RepeatText.Length>0?SettingsPopupAccess.RepeatText:AgreementImageAccess.RepeatText.Length>0?AgreementImageAccess.RepeatText:NativeTipsAccess.RepeatText.Length>0?NativeTipsAccess.RepeatText:BalloonChoiceAccess.RepeatText.Length>0?BalloonChoiceAccess.RepeatText:SettingsPopupAccess.RepeatText.Length>0?SettingsPopupAccess.RepeatText:DrumPuzzleAccess.RepeatText.Length>0?DrumPuzzleAccess.RepeatText:P2CampNavigation.RepeatText.Length>0?P2CampNavigation.RepeatText:P2EvolutionAccess.RepeatText.Length>0?P2EvolutionAccess.RepeatText:P2TreasureAccess.RepeatText.Length>0&&!CommonUi.CommandWindowActive?P2TreasureAccess.RepeatText:StructuredUi.RepeatText.Length>0?StructuredUi.RepeatText:RewardAccess.IsResultActive?RewardAccess.RepeatText:NameInputAccess.IsActive?NameInputAccess.RepeatText:OpeningAccess.IsActive?OpeningAccess.RepeatText:CommonUi.RepeatText.Length>0?CommonUi.RepeatText:string.IsNullOrEmpty(focusText)?Speech.Last:focusText);
                     if(!ModuleHelp.Active && i==3) Speech.Speak(VisibleText());
-                    if(!ModuleHelp.Active && i==4) { pending=""; DialogueAccess.Clear(); CommonUi.Clear(); Speech.Stop(); }
+                    if(!ModuleHelp.Active && i==4) { pending=""; DialogueAccess.Clear("user-stop-F5"); AgreementImageAccess.Clear(); CommonUi.Clear(); Speech.Stop(); }
                     if(!ModuleHelp.Active && i==6) AttackCue.Test();
                     if(!ModuleHelp.Active && i==7) Speech.Speak(RangeMonitor.CurrentStatus);
                 }
@@ -162,8 +167,31 @@ public class Reader : MonoBehaviour
             if(Time.unscaledTime < nextPoll) return;
             nextPoll=Time.unscaledTime+0.1f;
             if(SettingsPopupAccess.Scan()){pending="";return;}
+            if(NativeRushScreenAccess.Scan()){pending="";return;}
+            if(BossRushDescriptionAccess.Scan()){pending="";return;}
+            if(AgreementImageAccess.Scan()){pending="";return;}
             if(StructuredUi.Scan()){pending="";return;}
-            if(NameInputAccess.Scan()) {pending="";return;}
+            if(NameInputAccess.Scan()) {
+                pending="";
+                // The original naming question is a native dialogue, not input-field text.
+                string prompt=DialogueAccess.Take();if(prompt.Length>0)Speech.Speak(prompt,interrupt:false);
+                return;
+            }
+            if(!launcher)launcher=UnityEngine.Object.FindObjectOfType<LauncherMain>();
+            var firstRoot=launcher?launcher!.titleFirstStartTelopRoot:null;
+            string firstText=firstRoot&&firstRoot!.activeInHierarchy?TextOf(firstRoot):"";
+            // The visible prompt may live outside the launcher root after a scene/layout change.
+            // Only a source-image-verified sprite is eligible; never infer a prompt from a model name.
+            if(firstText.Length==0)foreach(var image in UnityEngine.Object.FindObjectsOfType<Image>()){
+                string verified=AgreementImageAccess.ButtonImage(image);
+                if(verified=="PRESS ANY BUTTON"){firstText=verified;break;}
+            }
+            if(firstText.Length>0){
+                firstStartSeen=Environment.TickCount64;focusText=firstText;
+                if(firstText!=firstStartImage){firstStartImage=firstText;Speech.Speak(firstText);Monitor.Record("launcher-first-start-image",new{text=firstText,source="visible-root-native-text-or-verified-image"});}
+                pending="";return;
+            }
+            if(Environment.TickCount64-firstStartSeen>1500)firstStartImage="";
             MiracleAccess.Tick();
             DrumPuzzleAccess.Tick();
             AttackCue.Scan();
@@ -208,30 +236,50 @@ public class Reader : MonoBehaviour
     }
     private string GetContext()
     {
+        string specialHint=SpecialTitleHintAccess.Read();if(specialHint.Length>0)return specialHint;
         var e=UnityEngine.Object.FindObjectOfType<EndUserLicenseAgreementWindow>();
-        if(e && e!.gameObject.activeInHierarchy && !e.IsClosed()) return I18n.T("ui.feb5568522e6","使用者授權合約。內文為圖片，本版尚未提供完整內文朗讀");
+        if(e && e!.gameObject.activeInHierarchy && !e.IsClosed()) return "";
         var p=UnityEngine.Object.FindObjectOfType<PrivacyPolicyAgreementWindow>();
-        if(p && p!.gameObject.activeInHierarchy && !p.IsClosed()) return I18n.T("ui.b98bd642624f","隱私權政策。內文為圖片，本版尚未提供完整內文朗讀");
+        if(p && p!.gameObject.activeInHierarchy && !p.IsClosed()) return "";
         var d=UnityEngine.Object.FindObjectOfType<DataUsageAgreementWindow>();
         if(d && d!.gameObject.activeInHierarchy && !d.IsClosed()) return I18n.T("ui.64cf356da31d","資料使用同意選項");
         if(launcher && launcher!.settingMain && launcher.settingMain.gameObject.activeInHierarchy && !launcher.settingMain.IsClosed()) return I18n.T("ui.0d8619aae051","設定");
         if(launcher && launcher!.menuRoot && launcher.menuRoot.activeInHierarchy) return I18n.T("ui.ad42dd3d047b","開始選單");
         return I18n.T("ui.6469ddabee38","標題畫面");
     }
+    private static readonly HashSet<int> unlabelledOptions=new();
+    private static readonly HashSet<string> launcherLabels=new();
     private string Describe(GameObject go)
     {
         var row=go.GetComponentInParent<MenuItemBase>();
         if(row) return SettingsAccess.Describe(row!);
-        string label="";
-        if(launcher is not null && launcher) {
-            if(Is(go,launcher.p1Button)) label=I18n.T("ui.120d60cc3c42","PATAPON 一代");
-            else if(Is(go,launcher.p2Button)) label=I18n.T("ui.fac22c2337e1","PATAPON 二代");
-            else if(Is(go,launcher.specialButton)) label=I18n.T("ui.a78226d28e6c","特別內容");
-            else if(Is(go,launcher.settingButton)) label=I18n.T("ui.0d8619aae051","設定");
-            else if(Is(go,launcher.quitButton)) label=I18n.T("ui.2f6c2d994ca0","結束遊戲");
+        string label=TextOf(go);
+        if(label.Length==0){
+            var special=go.GetComponentInParent<SpecialTitle>();
+            if(special&&special!.gameObject.activeInHierarchy){
+                int index=Is(go,special.p1Button)?0:Is(go,special.p2Button)?1:Is(go,special.backButton)?2:-1;
+                label=ImageTextCatalog.SpecialTitleButton(index);
+            }
+        }
+        if(label.Length==0 && launcher is not null && launcher) {
+            if(Is(go,launcher.p1Button)) label=I18n.T("ui.120d60cc3c42","PATAPON 1");
+            else if(Is(go,launcher.p2Button)) label=I18n.T("ui.fac22c2337e1","PATAPON 2");
+            else {
+                string sprite=Is(go,launcher.specialButton)?"title_menu_special_01":Is(go,launcher.settingButton)?"title_menu_setting_01":Is(go,launcher.quitButton)?"title_menu_quit_01":"";
+                if(sprite.Length>0){
+                    var manager=UnityEngine.Object.FindObjectOfType<Px.Media.Dat.LauncherLocalizeManager>();
+                    string language=manager?manager!.GetLanguageTypeKey():"";
+                    label=ImageTextCatalog.FocusedLauncherButton(sprite,language);
+                    if(label.Length>0&&launcherLabels.Add(sprite+":"+language+":"+label))Monitor.Record("launcher-focused-image-label",new{sprite,language,text=label,source="native focused button identity and visually checked game artwork"});
+                }
+            }
         }
         if(label.Length==0) label=TextOf(go);
-        if(label.Length==0) label=I18n.T("ui.19317f59e5a9","未標示的選項，")+go.name;
+        if(label.Length==0){
+            if(unlabelledOptions.Count>128)unlabelledOptions.Clear();
+            if(unlabelledOptions.Add(go.GetInstanceID()))Monitor.Record("unlabelled-option",new{path=Monitor.PathOf(go.transform),images=go.GetComponentsInChildren<Image>().Where(i=>i&&i.sprite).Select(i=>new{sprite=i.sprite.name,width=i.sprite.rect.width,height=i.sprite.rect.height}).ToArray(),reason="no native visible label or verified image transcription matched"});
+            label=I18n.T("ui.19317f59e5a9","未標示的選項，").TrimEnd('，',',',' ');
+        }
         var toggle=go.GetComponent<Toggle>();
         if(toggle) return label+I18n.T("ui.cf9551d9635b","，核取方塊，")+(toggle.isOn?I18n.T("ui.7990b4e6847e","已勾選"):I18n.T("ui.a2d59805e3b3","未勾選"));
         var slider=go.GetComponent<Slider>();
@@ -244,23 +292,39 @@ public class Reader : MonoBehaviour
     private static bool Is(GameObject go, Component? c) => c && go==c!.gameObject;
     private static string TextOf(GameObject go)
     {
-        var text=new List<string>();
-        foreach(var t in go.GetComponentsInChildren<TMP_Text>()) if(t && t.isActiveAndEnabled) text.Add(Speech.Clean(t.text));
-        foreach(var t in go.GetComponentsInChildren<Text>()) if(t && t.isActiveAndEnabled) text.Add(Speech.Clean(t.text));
+        var text=new List<string>();var captureIds=VisibleUiText.TipsCaptureTextIds();
+        foreach(var t in go.GetComponentsInChildren<TMP_Text>()) if(t) text.Add(VisibleUiText.Read(t,captureIds));
+        foreach(var t in go.GetComponentsInChildren<Text>()) if(t) text.Add(VisibleUiText.Read(t));
+        if(text.All(s=>s.Length==0))foreach(var image in go.GetComponentsInChildren<Image>())text.Add(AgreementImageAccess.ButtonImage(image));
         return string.Join("，",text.Where(s=>s.Length>0).Distinct());
     }
     private string VisibleText()
     {
-        if(P2CampNavigation.RepeatText.Length>0)return P2CampNavigation.RepeatText;
-        if(StructuredUi.RepeatText.Length>0)return StructuredUi.RepeatText;
-        if(RewardAccess.IsResultActive)return RewardAccess.RepeatText;
-        if(NameInputAccess.IsActive)return NameInputAccess.RepeatText;
-        if(OpeningAccess.IsActive)return OpeningAccess.RepeatText;
-        if(TitleAccess.IsActive) return I18n.T("ui.be25227b01e2","開始選單：開始新遊戲、繼續遊戲、返回。現在選擇：")+TitleAccess.Current;
-        var texts=new List<string>();
-        foreach(var t in UnityEngine.Object.FindObjectsOfType<TMP_Text>()) if(t && t.isActiveAndEnabled && !MiracleAccess.Suppress(t)) texts.Add(Speech.Clean(t.text));
-        foreach(var t in UnityEngine.Object.FindObjectsOfType<Text>()) if(t && t.isActiveAndEnabled) texts.Add(Speech.Clean(t.text));
+        // Prefer text owned by a known foreground screen over the shared font pool.
+        var snapshots=new (string source,string text)[]{
+            ("balloon-choice",BalloonChoiceAccess.RepeatText),
+            ("settings-popup",SettingsPopupAccess.RepeatText),
+            ("agreement-image",AgreementImageAccess.RepeatText),
+            ("confirmation",StructuredUi.ContextKind is "save-confirm" or "gift-confirm"?StructuredUi.RepeatText:""),
+            ("focused-command-window",CommonUi.WindowRepeatText),
+            ("tips",NativeTipsAccess.RepeatText),
+            ("treasure-selection",P2TreasureAccess.RepeatText),
+            ("p2-equipment",P2CampNavigation.RepeatText),
+            ("equipment",ItemAndPlaceAccess.EquipmentRepeatText),
+            ("inventory",ItemAndPlaceAccess.ItemRepeatText),
+            ("structured-screen",StructuredUi.RepeatText),
+            ("result",RewardAccess.IsResultActive?RewardAccess.RepeatText:""),
+            ("name-entry",NameInputAccess.IsActive?NameInputAccess.RepeatText:""),
+            ("opening",OpeningAccess.IsActive?OpeningAccess.RepeatText:""),
+            ("title",TitleAccess.IsActive?TitleAccess.Current:"")
+        };
+        foreach(var snapshot in snapshots)if(snapshot.text.Length>0){Monitor.Record("screen-readout",new{source=snapshot.source,text=snapshot.text});return snapshot.text;}
+        var texts=new List<string>();var captureIds=VisibleUiText.TipsCaptureTextIds();
+        foreach(var t in UnityEngine.Object.FindObjectsOfType<TMP_Text>()) if(t&&!MiracleAccess.Suppress(t)) texts.Add(VisibleUiText.Read(t,captureIds));
+        foreach(var t in UnityEngine.Object.FindObjectsOfType<Text>()) if(t) texts.Add(VisibleUiText.Read(t));
+        foreach(var picture in UnityEngine.Object.FindObjectsOfType<Image>())texts.Add(AgreementImageAccess.ButtonImage(picture));
         string result=string.Join("。",texts.Where(t=>t.Length>0).Distinct());
+        Monitor.Record("screen-readout",new{source="visibility-filtered-fallback",text=result});
         return result.Length>0?result:I18n.T("ui.e30eecc6c0bb","目前找不到可讀取的文字");
     }
 }
@@ -298,9 +362,13 @@ internal static class SettingsAccess
         var fresh=row.gameObject.GetComponent<NewSavePanel>();
         if(panel || fresh) {
             string mode=saveMenu && saveMenu!.title ? Speech.Clean(saveMenu.title.text) : I18n.T("ui.2f4fa933d1b1","存檔欄位");
-            mode=mode switch {"SAVE"=>I18n.T("ui.959ac5386b6e","存檔"),"LOAD"=>I18n.T("ui.8c660a4a11a4","讀取存檔"),"DELETE"=>I18n.T("ui.4672b3c1c37b","刪除存檔"),_=>mode};
             string slot=saveMenu?I18n.T("ui.590977803a0e","第 {0} 格，",saveMenu!.cursorIndex+1):"";
-            if(fresh) return mode+"，"+slot+I18n.T("ui.c04b7dd67608","新資料");
+            if(fresh) {
+                var native=new List<string>();
+                foreach(var t in row.GetComponentsInChildren<TMP_Text>())native.Add(VisibleUiText.Read(t));
+                foreach(var t in row.GetComponentsInChildren<Text>())native.Add(VisibleUiText.Read(t));
+                return string.Join("，",new[]{mode,slot,string.Join("，",native.Where(t=>t.Length>0).Distinct())}.Where(t=>t.Length>0));
+            }
             var detail=new List<string>{mode,slot+I18n.T("ui.aa3c79dc6ac6","已有存檔")};
             if(panel!.playerNameText) detail.Add(Speech.Clean(panel.playerNameText.text));
             if(panel.lastMissionNameText) detail.Add(Speech.Clean(panel.lastMissionNameText.text));
@@ -317,7 +385,7 @@ internal static class SettingsAccess
         if(rebind) {
             string action=Speech.Clean(rebind.Label);
             if(action.Length==0 && rebind.labelText) action=Speech.Clean(rebind.labelText.text);
-            parts.Add(action.Length>0?action:rebind.GetAction().ToString());
+            if(action.Length>0)parts.Add(action);
             int count=rebind.keyTexts==null?0:rebind.keyTexts.Length;
             int selected=rebind.CurrentIndex;
             var keys=new List<string>();
@@ -340,7 +408,7 @@ internal static class SettingsAccess
             return string.Join("，",parts.Where(p=>!string.IsNullOrWhiteSpace(p)).Distinct());
         }
         string label=row.itemText ? Speech.Clean(row.itemText.text) : "";
-        parts.Add(label.Length>0?label:row.name);
+        if(label.Length>0)parts.Add(label); // Object names are query/log metadata, never labels.
         var choice=row.gameObject.GetComponent<SelectableMenuItem>();
         var text=row.gameObject.GetComponent<LabelMenuItem>();
         var slider=row.gameObject.GetComponent<SliderMenuItem>();
@@ -351,13 +419,14 @@ internal static class SettingsAccess
         else if(slider && slider.slider) parts.Add(I18n.T("ui.a2b83904bfbf","滑桿，")+slider.slider.value.ToString("0.##"));
         else {
             foreach(var t in row.GetComponentsInChildren<TMP_Text>())
-                if(t && t.isActiveAndEnabled) parts.Add(Speech.Clean(t.text));
+                if(t) parts.Add(VisibleUiText.Read(t));
         }
         if(row.IsEditing) parts.Add(I18n.T("ui.730c0648427f","編輯中"));
         string result=string.Join("，",parts.Where(p=>!string.IsNullOrWhiteSpace(p)).Distinct());
         return result;
     }
 }
+
 
 
 

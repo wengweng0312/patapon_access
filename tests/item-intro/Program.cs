@@ -10,4 +10,17 @@ t.Close("other");Check(t.Observe("one","道具選擇","肉，持有99個")==null
 t.Close("one");Check(t.Observe("one","道具選擇","肉，持有99個")=="道具選擇，肉，持有99個","reopen introduces once again");
 Check(t.Observe("two","道具選擇","肉，持有99個")=="道具選擇，肉，持有99個","new owner independent");
 var empty=new ItemSelectionReadout();Check(empty.Observe("x","道具選擇","")==null&&empty.Observe("x","道具選擇","石頭")=="道具選擇，石頭","unready content does not consume introduction");
+var equip=new ItemSelectionReadout();
+Check(equip.Observe("weapon","Equipment","Bow, owned 3")=="Equipment，Bow, owned 3","equipment visit introduced");
+Check(equip.Observe("weapon","Equipment","Spear, owned 1")=="Spear, owned 1","equipment navigation omits only header");
+Check(equip.Observe("weapon","Equipment","Spear, owned 1, equipped")=="Spear, owned 1, equipped","equipping remains announced");
+equip.Close("weapon");
+Check(equip.Observe("weapon","Equipment","Spear, owned 1, equipped")=="Equipment，Spear, owned 1, equipped","reopened equipment introduces header again");
+var birth=new ItemSelectionReadout();
+Check(birth.Observe("birth","新的PATAPON，持有響聲 576","混雜的合金")=="新的PATAPON，持有響聲 576，混雜的合金","birth first entry introduces context once");
+Check(birth.Observe("birth","新的PATAPON，持有響聲 576","常見的樹枝")=="常見的樹枝","reported birth navigation excludes title currency and ordinal");
+Check(birth.Observe("birth","新的PATAPON，持有響聲 576","誕生")=="誕生","birth action only");
+Check(birth.Observe("birth","新的PATAPON，持有響聲 500","石塊")=="石塊","shared balance change does not repeat on navigation");
+birth.Close("birth");
+Check(birth.Observe("birth","新的PATAPON，持有響聲 500","石塊")=="新的PATAPON，持有響聲 500，石塊","new visit uses updated balance");
 Console.WriteLine($"{n} item intro cases passed.");
