@@ -14,7 +14,7 @@ namespace PataponAccess;
 [BepInPlugin("org.patapon.access.start", "Patapon Start Screen Access", Plugin.ModVersion)]
 public class Plugin : BasePlugin
 {
-    public const string ModVersion="0.6.70";
+    public const string ModVersion="0.6.71";
     private Reader? reader;
     public override void Load()
     {
@@ -22,6 +22,7 @@ public class Plugin : BasePlugin
         I18nRuntime.Initialize(Config,BepInEx.Paths.GameRootPath);
         CueAudio.Initialize(Config);
         DanceCueAccess.Initialize(Config);
+        FarmingRestCue.Initialize(Config);
         var native = Path.Combine(Path.GetDirectoryName(GetType().Assembly.Location)!, "nvdaControllerClient64.dll");
         Speech.Initialize(native,Config.Bind("Speech","UseTolk",true,"Use Tolk to detect supported screen readers; direct NVDA remains the fallback.").Value,Config.Bind("Speech","WindowsVoiceFallback",false,"Allow Tolk OneCore/SAPI voices if no screen reader is available.").Value);
         AttackCue.Initialize(Config.Bind("Audio", "AttackReadyCue", false, "Play a short sound when visible text says 攻擊預備.").Value);
@@ -29,6 +30,7 @@ public class Plugin : BasePlugin
         BattleChants.Configure(Config.Bind("Speech","ReadBattleChants",false,"Read confirmed repeating player march/attack chants. Story, NPC dialogue and tactical warnings remain readable. Toggle in F1 help."));
         DrumPuzzleAccess.Configure(Config.Bind("Speech","DrumPuzzleReadKeys",false,"Read puzzle keyboard bindings instead of drum names. Toggle in F1 help."));
         DialogueAccess.Install();
+        MapWeatherAccess.Install();
         CommonUi.Install();
         StructuredUi.Install();
         bool diagnostics=Config.Bind("Diagnostics", "Enabled", true, "Record local UI and message events for accessibility development.").Value;
@@ -37,7 +39,7 @@ public class Plugin : BasePlugin
         CampHintAccess.Install();
         MiracleAccess.Install(Config);
         BattleMonitor.Install(diagnostics && Config.Bind("Diagnostics", "Battle", true, "Record P1/P2 scalar attack checks, collision call counts and weather requests without reading native object fields.").Value);
-        RangeMonitor.Install(diagnostics,Config.Bind("Audio", "EnemyRangeCue", true, "Experimental cue on rising P1/P2 long enemy sight flag; does not indicate hit.").Value,Config.Bind("Audio","ObjectRangeCue",true,"Separate enter/leave sounds for native attackable scenery sight flags. Does not guarantee hit, destruction or reward.").Value);
+        RangeMonitor.Install(diagnostics,Config.Bind("Audio", "EnemyRangeCue", true, "Shared enter/leave cue for enemies and attackable scenery; does not indicate a hit.").Value,false);
         OpeningAccess.Install();
         NameInputAccess.Install();
         RewardAccess.Install();

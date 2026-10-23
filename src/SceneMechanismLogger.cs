@@ -54,7 +54,7 @@ internal static class SceneMechanismLogger
             if(source=="update"&&sampledAt.TryGetValue(key,out long sample)&&now-sample<100)return;
             if(sampledAt.Count>128)sampledAt.Clear();sampledAt[key]=now;
             var p=gimmick.position_;
-            DrumPuzzleAccess.Observe(name!,gimmick.isEnable_,p.x,p.y);
+            DrumPuzzleAccess.Observe(name!,gimmick.isEnable_,p.x,p.y,gimmick.id_);
             bool enabled=gimmick.isEnable_,viewable=gimmick.isViewable_,twoD=gimmick.is2d();
             string state=$"{p.x:F1}:{p.y:F1}:{enabled}:{viewable}:{twoD}:{gimmick.isHit_}:{gimmick.isInnerTarget_}:{gimmick.prevTargetType_}:{gimmick.prevTargetId_}";
             bool found=snapshots.TryGetValue(key,out var old),changed=!found||state!=old.state;

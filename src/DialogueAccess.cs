@@ -67,9 +67,11 @@ internal static class DialogueAccess
                         }
                         idleSpoken[text]=now;
                     }
-                    if(text==previous && now-previousAt<800) continue;
-                    previous=text;previousAt=now;
-                    queue.Add(text,DialogueText.HasVariableToken(raw)?raw:"",protectedHint?hintKey:"",__originalMethod.DeclaringType+"."+__originalMethod.Name,now);
+                    string description=MapWeatherAccess.Capture(__instance);
+                    string dedup=text+"\n"+description;
+                    if(dedup==previous && now-previousAt<800) continue;
+                    previous=dedup;previousAt=now;
+                    queue.Add(text,DialogueText.HasVariableToken(raw)?raw:"",protectedHint?hintKey:"",__originalMethod.DeclaringType+"."+__originalMethod.Name,now,description);
                 }
                 if(protectedHint)Monitor.Record("camp-hint-preserved",new{key=hintKey,text,template=raw});
                 Monitor.Record("dialogue-queued",new{source=__originalMethod.DeclaringType+"."+__originalMethod.Name,text,ambientDepth=AmbientDialogue.Depth,appealDepth=AmbientDialogue.AppealDepth,speaker=BattleChants.Source});
@@ -95,6 +97,7 @@ internal static class DialogueAccess
                     if(DialogueText.HasLevelToken(entry.Template))text=System.Text.RegularExpressions.Regex.Replace(text,@"Lv\.\s*",I18n.T("ui.16b0234b5343","等級未取得 "));entry.Template="";
                 }
             }
+            text=MapWeatherText.Append(text,entry.Description);
             queue.Complete(entry);
             CampHintAccess.Offer(entry.Hint,text);
             Monitor.Record("dialogue-dequeued",new{text,source=entry.Source,waitMs=now-entry.CapturedAt,remaining=queue.Count});

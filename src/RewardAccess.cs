@@ -31,6 +31,8 @@ internal static class RewardAccess
     public static void Install()
     {
         NativeResultAccess.Install();
+        MiningRewardAccess.Install(new Harmony("org.patapon.access.mining-rewards"));
+        MiniGameRewardAccess.Install(new Harmony("org.patapon.access.mini-visible-rewards"));
         try {
             new Harmony("org.patapon.access.rewards").Patch(typeof(P1.GameSystem.Item.Operator).GetMethod("addItem"),
                 postfix:new HarmonyMethod(typeof(RewardAccess).GetMethod(nameof(Added),BindingFlags.Static|BindingFlags.NonPublic)));
@@ -60,6 +62,8 @@ internal static class RewardAccess
             var param=__instance.getItemParam(__0);if(param==null)return;
             uint nameId=Convert.ToUInt32(param.nameId);
             Monitor.Record("item-added",new{game="P2",itemId=__0,count=__1,nameId,battle=BattleMonitor.Active});
+            MiningRewardAccess.Added(nameId,__1);
+            MiniGameRewardAccess.Added(nameId,__1);
             if(BattleMonitor.Active){BattleGain("P2",__0,nameId,__1);return;}
             var key=("P2",__0);int old=gains.TryGetValue(key,out var value)?value.count:0;
             gains[key]=(nameId,old+__1,Environment.TickCount64);
@@ -67,6 +71,8 @@ internal static class RewardAccess
     }
     public static bool Scan()
     {
+        MiningRewardAccess.Scan();
+        MiniGameRewardAccess.Scan();
         long now=Environment.TickCount64;
         // P2 keeps the result panel alive behind treasure selection/confirmation.
         // Background result text must not consume the entire speech update.

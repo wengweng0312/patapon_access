@@ -5,13 +5,17 @@ namespace PataponAccess;
 internal static class DrumPuzzleAccess
 {
     private static ConfigEntry<bool>? keys;
-    private static readonly DrumPuzzleState state=new();
+    private static readonly P2TotemCueState state=new();
+    private static string lastPuzzleSpeech="";
     public static void Configure(ConfigEntry<bool> value)=>keys=value;
     public static string Mode=>keys?.Value==true?I18n.T("ui.cd89e50cc353","綁定按鍵"):I18n.T("ui.278b93b27c5f","鼓聲名稱");
     public static string Toggle(){if(keys!=null)keys.Value=!keys.Value;return I18n.T("ui.b87d9c50189d","機關鼓點報讀：")+Mode;}
     private static long nextPlayerSample,lastError,nextProximityLog;
     public static void Install()
     {
+        try{string file=Path.Combine(Path.GetDirectoryName(typeof(Plugin).Assembly.Location)!,"mechanism-ready.wav");if(!File.Exists(file))File.WriteAllBytes(file,MechanismReadyWave.Build());CueAudio.Prepare(file);}
+        catch(Exception e){Reader.Log.LogWarning("Mechanism ready audio: "+e.Message);}
+        P2TotemNative.Install();
         try{new Harmony("org.patapon.access.puzzle-position").Patch(typeof(P2.Game.Unit.FlagUnit).GetMethod("update"),postfix:new HarmonyMethod(typeof(DrumPuzzleAccess).GetMethod(nameof(Player),BindingFlags.NonPublic|BindingFlags.Static)));}
         catch(Exception e){Reader.Log.LogWarning("Puzzle position hook: "+e.Message);}
     }
@@ -30,9 +34,10 @@ internal static class DrumPuzzleAccess
             state.ObservePlayer(model.pos_.x,top.unitModel_.pos_.x,now);
         }catch(Exception e){if(now-lastError>=5000){lastError=now;Monitor.Record("drum-puzzle-position-error",new{error=e.Message});}}
     }
-    public static void Clear(){state.Clear();P1TotemAccess.Clear();nextPlayerSample=nextProximityLog=0;}
+    public static void Clear(){state.Clear();P1TotemAccess.Clear();P2TotemNative.Clear();lastPuzzleSpeech="";nextPlayerSample=nextProximityLog=0;}
 
-    public static void Observe(string name,bool enabled,float x,float y)=>state.Observe(name,enabled,x,y,Environment.TickCount64);
+    public static void Observe(string name,bool enabled,float x,float y,uint layoutId)=>state.Observe(name,enabled,x,y,layoutId,Environment.TickCount64);
+    public static bool ObserveNative(uint layoutId,int stage,float min,float max,long now)=>state.ObserveNative(layoutId,stage,min,max,now);
     private static string Format(string sequence)
     {
         if(keys?.Value!=true)return sequence;
@@ -44,12 +49,26 @@ internal static class DrumPuzzleAccess
     public static string RepeatText
     {
         get{if(!BattleMonitor.Active)return "";long now=Environment.TickCount64;
-            string p1=P1TotemAccess.State.CurrentAt(now);return Format(p1.Length>0?p1:state.CurrentAt(now));}
+            string p1=P1TotemAccess.State.CurrentAt(now);if(p1.Length>0)return Format(p1);
+            string current=state.CurrentAt(now);if(current.Length>0)return Format(current);
+            return state.HasEncounter&&lastPuzzleSpeech.Length>0&&Speech.Last==lastPuzzleSpeech?I18n.T("puzzle.not-ready","目前無法確認機關可接受輸入。"):"";}
     }
     public static void Tick()
     {
         if(!BattleMonitor.Active)return;
-        TickState(P1TotemAccess.State,"P1");TickState(state,"P2");
+        TickState(P1TotemAccess.State,"P1");TickP2();
+    }
+    private static void TickP2(){
+        long now=Environment.TickCount64;var cue=state.Take(now);
+        if(cue==TotemCue.None)return;
+        bool ready=cue==TotemCue.Ready;
+        string file=Path.Combine(Path.GetDirectoryName(typeof(Plugin).Assembly.Location)!,ready?"mechanism-ready.wav":"mechanism-near.wav");
+        bool success=CueAudio.Play(file);
+        string text=ready?Format(state.CurrentAt(now)):I18n.T("puzzle.ahead","前方有鼓點機關。");
+        if(text.Length==0)return;
+        lastPuzzleSpeech=text;
+        Monitor.Record("drum-puzzle-two-stage",new{game="P2",stage=ready?"ready":"ahead",flagDistance=state.FlagDistance,success,text,experimental=true});
+        Speech.Speak(text,interrupt:false);
     }
     private static void TickState(DrumPuzzleState current,string game)
     {

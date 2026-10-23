@@ -10,9 +10,10 @@ internal static class RangeMonitor
     private static long nextSample,nextHeartbeat,samples,errors,lastError;
     private static string last="";
     public static string CurrentStatus {get;private set;}=I18n.T("ui.ca39bb204b65","目前沒有可用的射程資料");
+    private static string TargetStatus(bool inside)=>(inside?I18n.T("range.targets.in","攻擊目標在射程內"):I18n.T("range.targets.out","沒有偵測到射程內攻擊目標"))+I18n.T("ui.5c091b7a3aa3","。射程資訊不代表必定命中。");
     public static void Install(bool logging,bool cue,bool objectCue)
     {
-        enabled=logging||cue||objectCue;RangeCue.Enabled=cue;ObjectRangeCue.Initialize(objectCue);
+        enabled=logging||cue;RangeCue.Enabled=cue;ObjectRangeCue.Initialize(false);
         if(!enabled)return;
         var h=new Harmony("org.patapon.access.range");
         foreach(string game in new[]{"P1S","P2S"})foreach(string method in new[]{"mainNormal","watchAlert"})try{
@@ -55,7 +56,8 @@ internal static class RangeMonitor
             int max=game=="P1S"?3:4;if(new[]{le,se,lg,sg}.Any(n=>n<0||n>max))return;
             string signature=$"{game}:{le}:{se}:{lg}:{sg}";
             if(signature!=last||now>=nextHeartbeat){Monitor.Record("range-state",new{game,longEnemySquads=le,shortEnemySquads=se,longGimmickSquads=lg,shortGimmickSquads=sg});last=signature;nextHeartbeat=now+1000;}
-            RangeCue.Observe(le>0,le,se,game+"LongEnemy");
+            RangeCue.Observe(le>0||lg>0,le+lg,se+sg,game+"AttackableTargets");
+            CurrentStatus=TargetStatus(le>0||lg>0);
             ObjectRangeCue.Observe(game,lg,sg);
         }catch(Exception e){if(now-lastError>5000){lastError=now;Monitor.Record("range-error",new{game="rush",error=e.Message});}}
     }
@@ -75,9 +77,8 @@ internal static class RangeMonitor
             if(le<0||le>4||se<0||se>4||lg<0||lg>4||sg<0||sg>4)throw new InvalidOperationException("P2 sight counts outside 0..4");
             string key=$"P2:{le}:{se}:{lg}:{sg}";
             if(key!=last||now>=nextHeartbeat){Monitor.Record("range-state",new{game="P2",longEnemySquads=le,shortEnemySquads=se,longGimmickSquads=lg,shortGimmickSquads=sg});last=key;nextHeartbeat=now+1000;}
-            CurrentStatus=(le>0?I18n.T("ui.8e7a3d018df4","敵方部隊在攻擊範圍內"):I18n.T("ui.1f24ed275b02","沒有偵測到射程內敵方部隊"))+"。"+
-                (lg>0?I18n.T("ui.4b617d8be750","可攻擊場景物件在攻擊範圍內"):I18n.T("ui.8e4ed584bb65","沒有偵測到射程內可攻擊場景物件"))+I18n.T("ui.5c091b7a3aa3","。射程資訊不代表必定命中。");
-            RangeCue.Observe(le>0,le,se,"P2LongEnemy");
+            CurrentStatus=TargetStatus(le>0||lg>0);
+            RangeCue.Observe(le>0||lg>0,le+lg,se+sg,"P2AttackableTargets");
             ObjectRangeCue.Observe("P2",lg,sg);
         }catch(Exception e){if(now-lastError>10000){lastError=now;Monitor.Record("range-error",new{game="P2",error=e.Message});}}
     }
@@ -96,8 +97,8 @@ internal static class RangeMonitor
                 last=key;nextHeartbeat=now+1000;
             }
             bool direct=DirectEnemySight.Inside(now)||EnemyRangeGeometry.Inside(now);
-            CurrentStatus=(le>0||direct?I18n.T("ui.8e7a3d018df4","敵方部隊在攻擊範圍內"):I18n.T("ui.1f24ed275b02","沒有偵測到射程內敵方部隊"))+"。"+(lg>0?I18n.T("ui.ed159f698689","場景物件也在攻擊範圍內"):I18n.T("ui.4404f5611309","沒有偵測到射程內場景物件"))+I18n.T("ui.722cca490e4d","。這是一般目標資訊；馬車另以三聲鐘音提示。");
-            RangeCue.Observe(le>0||direct,le,se);
+            CurrentStatus=TargetStatus(le>0||direct||lg>0);
+            RangeCue.Observe(le>0||direct||lg>0,le+lg,se+sg,"P1AttackableTargets");
             ObjectRangeCue.Observe("P1",lg,sg);
         }catch(Exception e){errors++;if(now-lastError>10000){lastError=now;Monitor.Record("range-error",new{error=e.ToString(),samples,errors});}}
     }
@@ -107,28 +108,22 @@ internal static class RangeCue
 {
     public static bool Enabled;
     public static long LastPlaybackAt {get;private set;}
-    private static bool inside;
-    private static long trueSince,falseSince,lastSound,requestedAt;
+    private static readonly RangeTransition state=new();
+    private static long lastSound,requestedAt;
     private static int requested;
     private static string requestedBand="LongEnemy";
     [DllImport("winmm.dll",CharSet=CharSet.Unicode)]
     [return:MarshalAs(UnmanagedType.Bool)]
     private static extern bool PlaySound(string path,IntPtr module,uint flags);
-    public static void Reset(){inside=false;trueSince=falseSince=0;System.Threading.Interlocked.Exchange(ref requested,0);}
+    public static void Reset(){state.Reset();System.Threading.Interlocked.Exchange(ref requested,0);}
     public static void Observe(bool value,int longCount,int shortCount,string band="LongEnemy")
     {
         long now=Environment.TickCount64;
-        if(value) {
-            falseSince=0;if(trueSince==0)trueSince=now;
-            if(!inside&&now-trueSince>=200) {
-                inside=true;
-                Monitor.Record("enemy-range-enter",new{longCount,shortCount,band,experimental=true});
-                if(Enabled&&now-lastSound>=1500){lastSound=now;requestedAt=now;requestedBand=band;System.Threading.Interlocked.Exchange(ref requested,1);}
-            }
-        }else {
-            trueSince=0;if(falseSince==0)falseSince=now;
-            if(inside&&now-falseSince>=500){inside=false;Monitor.Record("enemy-range-leave",new{band});if(Enabled){requestedAt=now;requestedBand=band;System.Threading.Interlocked.Exchange(ref requested,-1);}}
-        }
+        int change=state.Observe(value,now);
+        if(change>0){
+            Monitor.Record("enemy-range-enter",new{longCount,shortCount,band,experimental=true});
+            if(Enabled&&now-lastSound>=1500){lastSound=now;requestedAt=now;requestedBand=band;System.Threading.Interlocked.Exchange(ref requested,1);}
+        }else if(change<0){Monitor.Record("enemy-range-leave",new{band});if(Enabled){requestedAt=now;requestedBand=band;System.Threading.Interlocked.Exchange(ref requested,-1);}}
     }
     public static void Scan()
     {

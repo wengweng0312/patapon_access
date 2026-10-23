@@ -32,3 +32,12 @@ var rapid=StickCueWave.Build(146,rapid:true);
 Check(!rapid.SequenceEqual(StickCueWave.Build(146)),"rapid sound differs from ordinary note");
 for(int pulse=1;pulse<3;pulse++){int expectedStart=(int)Math.Ceiling(pulse*48000*30.0/146);int first=Enumerable.Range(expectedStart,100).First(i=>Math.Abs((int)BitConverter.ToInt16(rapid,44+i*2))>100);Check(first-expectedStart<24,"rapid pulse starts at eighth-note spacing, within 0.5ms");}
 Console.WriteLine($"{checks} checks passed, including rapid timbre and eighth-note spacing.");
+
+foreach(var original in new[]{StickCueWave.Build(146,1),StickCueWave.Build(146,rapid:true),StickCueWave.Build(147,1)}) {
+ var aligned=MinigameCueWave.Align(original);int pad=48000*35/1000*2;
+ Check(aligned.Length==original.Length+pad,"35ms sample-accurate shift independent of frame rate");
+ Check(aligned.AsSpan(44,pad).ToArray().All(b=>b==0),"silent lead-in rather than modified pitch or gain");
+ Check(aligned.AsSpan(44+pad).SequenceEqual(original.AsSpan(44)),"all original samples and rapid spacing preserved");
+ Check(BitConverter.ToInt32(aligned,4)==aligned.Length-8&&BitConverter.ToInt32(aligned,40)==aligned.Length-44,"delayed WAV sizes valid");
+}
+Console.WriteLine($"{checks} checks including reported total35ms listening calibration.");
