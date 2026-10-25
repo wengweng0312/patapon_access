@@ -23,7 +23,7 @@ function Save-Original([string]$Relative) {
     $changed.Add([pscustomobject]@{Path=$Relative;Existed=$exists})
 }
 try {
-    Write-Host 'PATAPON 1+2 REPLAY 朗讀模組 0.6.71 安裝程式'
+    Write-Host 'PATAPON 1+2 REPLAY 朗讀模組 0.6.72 安裝程式'
     $GameRoot=[IO.Path]::GetFullPath($GameRoot)
     foreach($required in @('PATAPON12_REPLAY.exe','GameAssembly.dll','PATAPON12_REPLAY_Data\il2cpp_data\Metadata\global-metadata.dat')) {
         if(!(Test-Path -LiteralPath (Join-Path $GameRoot $required) -PathType Leaf)) {throw '請先將整個安裝包解壓到遊戲根目錄，也就是 PATAPON12_REPLAY.exe 所在資料夾，再執行安裝。'}

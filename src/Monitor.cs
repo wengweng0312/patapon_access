@@ -30,6 +30,9 @@ internal static class Monitor
     private static int dropped;
     private static long sequence;
     private static readonly System.Diagnostics.Stopwatch elapsed=System.Diagnostics.Stopwatch.StartNew();
+    private static readonly PageSnapshotState page=new();
+    private static LogBudget budget=new(50L*1024*1024,0,50L*1024*1024);
+    public static void RequestPage(string reason){if(enabled)page.Request(reason);}
     public static void Initialize(bool value,bool autoClean,int retentionDays,int maxTotalMb)
     {
         enabled=value;
@@ -37,7 +40,10 @@ internal static class Monitor
         try {
             directory=System.IO.Path.Combine(BepInEx.Paths.BepInExRootPath,"accessibility-logs");
             Directory.CreateDirectory(directory);
-            if(autoClean)LogRetention.Clean(directory,retentionDays,maxTotalMb,message=>Reader.Log.LogInfo(message));
+            const long sessionLimit=50L*1024*1024;
+            if(autoClean)LogRetention.Clean(directory,retentionDays,maxTotalMb,message=>Reader.Log.LogInfo(message),sessionLimit);
+            long existing=new DirectoryInfo(directory).GetFiles().Sum(f=>f.Length);
+            budget=new((long)Math.Clamp(maxTotalMb,50,10240)*1024*1024,existing,sessionLimit);
             run=DateTime.Now.ToString("yyyyMMdd-HHmmss")+"-"+Environment.ProcessId;
             OpenPart();
             string assembly=typeof(Plugin).Assembly.Location;
@@ -67,18 +73,25 @@ internal static class Monitor
     public static void Record(string kind,object data)
     {
         if(!enabled) return;
+        if(kind is "speech-dispatch" or "speech-focus" or "native-window-state")RequestPage(kind);
         lock(gate) {
             try {
                 var now=Environment.TickCount64;
                 if(now-windowStart>1000) { windowStart=now; events=0; if(dropped>0) {
-                    writer?.WriteLine(JsonSerializer.Serialize(new{schema=2,run,seq=++sequence,elapsedMs=elapsed.ElapsedMilliseconds,frame=Time.frameCount,time=DateTimeOffset.Now,kind="rate-limit",data=new{dropped}}));dropped=0;
+                    if(!WriteLine(JsonSerializer.Serialize(new{schema=2,run,seq=++sequence,elapsedMs=elapsed.ElapsedMilliseconds,frame=Time.frameCount,time=DateTimeOffset.Now,kind="rate-limit",data=new{dropped}})))return;dropped=0;
                 } }
                 if(events++>250) {dropped++;return;}
-                var line=JsonSerializer.Serialize(new { schema=2, run, mission=BattleMonitor.Mission, seq=++sequence, elapsedMs=elapsed.ElapsedMilliseconds, frame=Time.frameCount, time=DateTimeOffset.Now, kind, data });
-                if(bytes>10*1024*1024) {part++; if(part>=5){enabled=false;writer?.Dispose();Reader.Log.LogWarning("Event monitor reached 50 MB session limit.");return;} OpenPart();}
-                writer?.WriteLine(line); bytes+=System.Text.Encoding.UTF8.GetByteCount(line)+2;
+                var line=JsonSerializer.Serialize(new { schema=2, run, pageRevision=page.Revision, mission=BattleMonitor.Mission, seq=++sequence, elapsedMs=elapsed.ElapsedMilliseconds, frame=Time.frameCount, time=DateTimeOffset.Now, kind, data });
+                WriteLine(line);
             } catch(Exception e) { enabled=false; Reader.Log.LogWarning("Monitor stopped: "+e.Message); }
         }
+    }
+    private static bool WriteLine(string line)
+    {
+        long size=System.Text.Encoding.UTF8.GetByteCount(line)+System.Text.Encoding.UTF8.GetByteCount(Environment.NewLine);
+        if((part>=4&&bytes>0&&bytes+size>10*1024*1024)||!budget.Take(size)){enabled=false;writer?.Dispose();writer=null;Reader.Log.LogWarning("Event monitor reached session or total log capacity limit; gameplay and speech continue.");return false;}
+        if(bytes>0&&bytes+size>10*1024*1024){part++;OpenPart();}
+        writer?.WriteLine(line);bytes+=size;return true;
     }
     public static void Finish()
     {
@@ -115,7 +128,7 @@ internal static class Monitor
     }
     private static void EventPostfix(MethodBase __originalMethod,object[] __args)
     {
-        try {string method=__originalMethod.DeclaringType+"."+__originalMethod.Name; var args=__args.Select(DescribeArg).ToArray();if(Changed(method,string.Join("|",args))) Record("game-event",new{method,args});} catch { }
+        try {string method=__originalMethod.DeclaringType+"."+__originalMethod.Name; var args=__args.Select(DescribeArg).ToArray();if(Changed(method,string.Join("|",args))) {Record("game-event",new{method,args});RequestPage(method);}} catch { }
     }
     private static void LocalizationPostfix(MethodBase __originalMethod,object[] __args,string __result)
     {
@@ -129,17 +142,18 @@ internal static class Monitor
     }
     public static void Tick()
     {
-        if(!enabled || Time.unscaledTime<next) return;
+        if(!enabled)return;
+        if(Time.unscaledTime<next){if(page.Pending)CapturePage();return;}
         next=Time.unscaledTime+0.5f;
             BattleMonitor.Health();
         try {
             string current=string.Join("|",Enumerable.Range(0,SceneManager.sceneCount).Select(i=>SceneManager.GetSceneAt(i).name));
             bool changed=current!=scene;
-            if(changed) { scene=current; Record("scene",new { scenes=scene }); texts.Clear(); snapshots.Clear(); nextSnapshot=0; }
+            if(changed) { scene=current; Record("scene",new { scenes=scene }); texts.Clear(); snapshots.Clear(); nextSnapshot=0;RequestPage("scene"); }
             if(Time.unscaledTime>=nextSnapshot) {nextSnapshot=Time.unscaledTime+3;Snapshot();}
             var go=EventSystem.current?EventSystem.current.currentSelectedGameObject:null;
             string path=go?PathOf(go!.transform):"";
-            if(path!=focus) {focus=path;Record("ui-focus",new{path});}
+            if(path!=focus) {focus=path;Record("ui-focus",new{path});RequestPage("focus");}
             NativeWindowAudit.Tick();
             var seen=new HashSet<int>();
             foreach(var t in UnityEngine.Object.FindObjectsOfType<TMP_Text>().Take(2000)) {
@@ -147,18 +161,20 @@ internal static class Monitor
                 int id=t.GetInstanceID(); seen.Add(id);
                 string value=t.text??"";bool visible=t.maxVisibleCharacters!=0&&t.color.a>=0.05f;
                 string signature=value+"\0"+visible;
-                if(!texts.TryGetValue(id,out var old)||old!=signature) {texts[id]=signature;Record("text-change",new{id,path=PathOf(t.transform),component="TMP",text=value,maxVisibleCharacters=t.maxVisibleCharacters,visible,alpha=t.color.a,visibilityEvidence="active component, alpha and character limit; canvas occlusion unknown"});}
+                if(!texts.TryGetValue(id,out var old)||old!=signature) {texts[id]=signature;Record("text-change",new{id,path=PathOf(t.transform),component="TMP",text=value,maxVisibleCharacters=t.maxVisibleCharacters,visible,alpha=t.color.a,visibilityEvidence="active component, alpha and character limit; canvas occlusion unknown"});RequestPage("text");}
             }
             foreach(var t in UnityEngine.Object.FindObjectsOfType<Text>().Take(2000)) {
                 if(!t || !t.isActiveAndEnabled) continue;
                 int id=t.GetInstanceID();seen.Add(id);string value=t.text??"";
-                if(!texts.TryGetValue(id,out var old)||old!=value) {texts[id]=value;Record("text-change",new{id,path=PathOf(t.transform),component="UI.Text",text=value});}
+                if(!texts.TryGetValue(id,out var old)||old!=value) {texts[id]=value;Record("text-change",new{id,path=PathOf(t.transform),component="UI.Text",text=value});RequestPage("text");}
             }
-            foreach(int id in texts.Keys.Where(id=>!seen.Contains(id)).ToArray()) {Record("text-hidden",new{id});texts.Remove(id);}
+            foreach(int id in texts.Keys.Where(id=>!seen.Contains(id)).ToArray()) {Record("text-hidden",new{id});texts.Remove(id);RequestPage("text-hidden");}
+            if(page.Pending)CapturePage();
         } catch(Exception e) {Record("monitor-error",new{error=e.Message});next=Time.unscaledTime+2;}
     }
     private static void Snapshot()
     {
+        RequestPage("bounded-periodic-check");
         foreach(var c in UnityEngine.Object.FindObjectsOfType<Selectable>().Take(400)) {
             var data=new {path=PathOf(c.transform),type=c.GetIl2CppType().FullName,interactable=c.IsInteractable(),components=c.gameObject.GetComponents<Component>().Select(x=>x?x.GetIl2CppType().FullName:"null").ToArray()};
             if(SnapshotChanged("control:"+c.GetInstanceID(),JsonSerializer.Serialize(data))) Record("control",data);
@@ -168,6 +184,19 @@ internal static class Monitor
                 var data=new{path=PathOf(image.transform),sprite=image.sprite.name};
                 if(SnapshotChanged("image:"+image.GetInstanceID(),JsonSerializer.Serialize(data))) Record("image",data);
             }
+    }
+    private static void CapturePage()
+    {
+        try {
+            var reasons=page.Reasons;
+            var labels=UnityEngine.Object.FindObjectsOfType<TMP_Text>().Take(2000).Where(t=>t&&t.isActiveAndEnabled).OrderBy(t=>t.GetInstanceID()).Select(t=>new{id=t.GetInstanceID(),path=PathOf(t.transform),raw=t.text??"",characters=t.maxVisibleCharacters,alpha=t.color.a,captureOnly=PathOf(t.transform).StartsWith("Tips/",StringComparison.Ordinal)}).ToArray();
+            var plain=UnityEngine.Object.FindObjectsOfType<Text>().Take(2000).Where(t=>t&&t.isActiveAndEnabled).OrderBy(t=>t.GetInstanceID()).Select(t=>new{id=t.GetInstanceID(),path=PathOf(t.transform),raw=t.text??"",alpha=t.color.a}).ToArray();
+            var controls=UnityEngine.Object.FindObjectsOfType<Selectable>().Take(400).Where(c=>c&&c.isActiveAndEnabled).OrderBy(c=>c.GetInstanceID()).Select(c=>new{id=c.GetInstanceID(),path=PathOf(c.transform),type=c.GetIl2CppType().FullName,interactable=c.IsInteractable()}).ToArray();
+            var images=UnityEngine.Object.FindObjectsOfType<Image>().Take(400).Where(i=>i&&i.isActiveAndEnabled).OrderBy(i=>i.GetInstanceID()).Select(i=>new{id=i.GetInstanceID(),path=PathOf(i.transform),sprite=i.sprite?i.sprite.name:"",alpha=i.color.a,culled=i.canvasRenderer.cull}).ToArray();
+            var textures=UnityEngine.Object.FindObjectsOfType<RawImage>().Take(400).Where(i=>i&&i.isActiveAndEnabled).OrderBy(i=>i.GetInstanceID()).Select(i=>new{id=i.GetInstanceID(),path=PathOf(i.transform),texture=i.texture?i.texture.GetInstanceID():0,name=i.texture?i.texture.name:"",type=i.texture?i.texture.GetIl2CppType().FullName:"",alpha=i.color.a,culled=i.canvasRenderer.cull}).ToArray();
+            var data=new{scenes=scene,focus,labels,plain,controls,images,textures,evidence="active components and own alpha/cull only; final occlusion and native-drawn content unknown",limits=new{textPerKind=2000,controls=400,imagesPerKind=400}};
+            if(page.Commit(JsonSerializer.Serialize(data)))Record("page-snapshot",new{revision=page.Revision,reasons,data,capture="next Reader tick for known callbacks; 0.5s text/focus polling and 3s fallback for other changes"});
+        }catch(Exception e){page.Commit("capture-error:"+e.GetType().Name);Record("page-snapshot-error",new{error=e.Message});}
     }
     private static bool SnapshotChanged(string key,string value)
     {

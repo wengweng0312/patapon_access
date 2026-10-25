@@ -6,6 +6,7 @@ internal static class MiningRewardAccess
     [ThreadStatic] private static bool generating;
     private static readonly MiningRewardBatch batch=new();
     private static long lastAdded;
+    public static bool HandlesCurrentGrant=>generating;
     public static void Install(Harmony h)
     {
         // Native generateItem registers the visible dropped item model and

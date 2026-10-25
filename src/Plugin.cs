@@ -14,7 +14,7 @@ namespace PataponAccess;
 [BepInPlugin("org.patapon.access.start", "Patapon Start Screen Access", Plugin.ModVersion)]
 public class Plugin : BasePlugin
 {
-    public const string ModVersion="0.6.71";
+    public const string ModVersion="0.6.72";
     private Reader? reader;
     public override void Load()
     {
@@ -34,7 +34,7 @@ public class Plugin : BasePlugin
         CommonUi.Install();
         StructuredUi.Install();
         bool diagnostics=Config.Bind("Diagnostics", "Enabled", true, "Record local UI and message events for accessibility development.").Value;
-        Monitor.Initialize(diagnostics, Config.Bind("Diagnostics", "AutoCleanLogs", true, "Clean old accessibility event logs on startup.").Value, Config.Bind("Diagnostics", "LogRetentionDays", 7, "Keep event logs for this many days (1-3650).").Value, Config.Bind("Diagnostics", "LogMaxTotalMB", 200, "Startup event log size limit in MiB (50-10240); current session is additional.").Value);
+        Monitor.Initialize(diagnostics, Config.Bind("Diagnostics", "AutoCleanLogs", true, "Clean old accessibility event logs on startup.").Value, Config.Bind("Diagnostics", "LogRetentionDays", 7, "Keep event logs for this many days (1-3650).").Value, Config.Bind("Diagnostics", "LogMaxTotalMB", 200, "Event log budget in MiB (50-10240), including current session; reserve up to 50 MiB on startup. No screenshots are generated.").Value);
         HeroSongVolume.Initialize(Config);
         CampHintAccess.Install();
         MiracleAccess.Install(Config);

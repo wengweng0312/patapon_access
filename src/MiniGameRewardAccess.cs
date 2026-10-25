@@ -6,6 +6,7 @@ internal static class MiniGameRewardAccess
     [ThreadStatic] private static string? source;
     private static readonly MiningRewardBatch batch=new();
     private static long lastAdded;
+    public static bool HandlesCurrentGrant=>source!=null;
     public static void Install(Harmony h)
     {
         var targets=new[]{

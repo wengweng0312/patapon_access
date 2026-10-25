@@ -65,6 +65,7 @@ internal static class RewardAccess
             MiningRewardAccess.Added(nameId,__1);
             MiniGameRewardAccess.Added(nameId,__1);
             if(BattleMonitor.Active){BattleGain("P2",__0,nameId,__1);return;}
+            if(MiningRewardAccess.HandlesCurrentGrant||MiniGameRewardAccess.HandlesCurrentGrant)return;
             var key=("P2",__0);int old=gains.TryGetValue(key,out var value)?value.count:0;
             gains[key]=(nameId,old+__1,Environment.TickCount64);
         }catch(Exception e){Monitor.Record("reward-error",new{game="P2",error=e.Message});}
@@ -79,7 +80,8 @@ internal static class RewardAccess
         if(P2TreasureAccess.IsActive||CommonUi.CommandWindowActive)return false;
         // Let simultaneous grants settle before producing one utterance.
         if(gains.Values.Any(g=>now-g.at<500))return false;
-        // Inventory mutation remains diagnostic evidence, never a replacement for on-screen results.
+        // Battle inventory evidence never replaces on-screen results. The
+        // separately authorized out-of-mission notification is handled below.
         if(battleEnded&&now-battleChangedAt>=700){battleGains.Clear();battleEnded=false;}
         bool nativeActive=NativeResultAccess.State.Active(now);
         // Retain visible-panel detection for F3/F4 if a native reader is unavailable.
@@ -96,15 +98,22 @@ internal static class RewardAccess
             string guide=NativeResultGuideAccess.Take();if(guide.Length>0)Speech.Speak(guide,interrupt:false);
             return true;
         }
-        // Outside missions, wait for a batch of grants without hiding an active result.
+        // User-authorized module inventory notification, separate from game text.
         if(gains.Values.Any(g=>now-g.at<500))return false;
+        var inventory=new List<string>();
         foreach(var id in gains.Keys.ToArray()) {
             var gain=gains[id];if(now-gain.at<500)continue;
             string? name=UnitNames.FetchLocalized(id.game,gain.nameId);
             if(name==null && now-gain.at<5000)continue;
             gains.Remove(id);
             if(name==null){Monitor.Record("reward-name-missing",new{itemId=id,gain.nameId,gain.count});continue;}
-            Monitor.Record("inventory-grant-observed",new{game=id.game,itemId=id.id,name,count=gain.count,source="inventory-add-outside-mission",spoken=false,reason="native visible dialogue owns reward wording"});
+            inventory.Add(name+"，"+gain.count.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            Monitor.Record("inventory-grant-observed",new{game=id.game,itemId=id.id,name,count=gain.count,source="inventory-add-outside-mission",notificationPlanned=true,reason="user-authorized module inventory notification; not game result wording"});
+        }
+        if(inventory.Count>0){
+            string text=I18n.T("reward.inventory","物品入庫，{0}",string.Join("。",inventory));
+            miniRepeat=text;Speech.Speak(text,interrupt:false);
+            Monitor.Record("inventory-grant-speech",new{text,queued=true,moduleNotification=true});
         }
         return false;
     }

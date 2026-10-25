@@ -20,4 +20,10 @@ var bigOld=Make("20260104-120000-123-0.jsonl",2,30*1024*1024);
 var bigNew=Make("20260105-120000-123-0.jsonl",0,30*1024*1024);
 LogRetention.Clean(root,7,50,Console.WriteLine);
 Check(!File.Exists(bigOld)&&File.Exists(bigNew),"capacity cleanup oldest first");
+LogRetention.Clean(root,7,50,Console.WriteLine,50L*1024*1024);
+Check(!File.Exists(bigNew)&&File.Exists(other),"reserve active-session capacity while preserving unknown files");
 }finally{Directory.Delete(root,true);}
+
+var budget=new LogBudget(200,170,50);Check(budget.Limit==30,"current session included in total cap");Check(budget.Take(29)&&budget.Take(1)&&!budget.Take(1),"exact cap rejects overflow before write");
+var full=new LogBudget(200,250,50);Check(!full.Take(1),"occupied historical budget stops logging without deleting unknown files");
+var session=new LogBudget(200,0,50);Check(session.Take(50)&&!session.Take(1),"session cap preserved");
